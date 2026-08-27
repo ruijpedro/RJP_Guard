@@ -32,6 +32,7 @@ public class MainActivity extends Activity {
     private static final int PERMISSION_REQUEST = 1002;
 
     private LinearLayout root;
+    private boolean initialSyncRequested = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,12 +40,21 @@ public class MainActivity extends Activity {
         GuardNotifier.ensureChannel(this);
         requestNeededPermissions();
         render();
+        requestInitialSpamSync();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         if (root != null) render();
+    }
+
+    private void requestInitialSpamSync() {
+        if (initialSyncRequested) return;
+        initialSyncRequested = true;
+        SpamSyncManager.autoSyncIfNeeded(this, (ok, message, count) -> {
+            if (ok && root != null) render();
+        });
     }
 
     private void render() {
@@ -55,7 +65,6 @@ public class MainActivity extends Activity {
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(18), dp(20), dp(18), dp(28));
-        scroll.removeAllViews();
         scroll.addView(root, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         ImageView logo = new ImageView(this);
@@ -79,19 +88,47 @@ public class MainActivity extends Activity {
         notifButton.setOnClickListener(v -> startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")));
         root.addView(notifButton);
 
+        root.addView(sectionTitle("BASE ANTI-SPAM PÚBLICA"));
+        long dbCount = SpamDatabase.get(this).count();
+        String lastSync = SpamDatabase.get(this).meta("last_sync", "Ainda não atualizada");
+        String version = SpamDatabase.get(this).meta("version", "");
+        root.addView(infoCard("Números conhecidos", String.valueOf(dbCount)));
+        root.addView(infoText("Fonte: CallShield Community Database. A consulta é feita localmente durante a chamada; o RJP Guard não envia o número recebido para esta base."));
+        root.addView(infoText("Última atualização: " + lastSync + (version.isEmpty() ? "" : " • versão " + version)));
+
+        Button updateDb = actionButton("↻ ATUALIZAR BASE ANTI-SPAM");
+        updateDb.setOnClickListener(v -> {
+            updateDb.setEnabled(false);
+            updateDb.setText("A atualizar…");
+            SpamSyncManager.sync(this, (ok, message, count) -> {
+                Toast.makeText(this, message + (ok ? " • " + count + " números" : ""), Toast.LENGTH_LONG).show();
+                render();
+            });
+        });
+        root.addView(updateDb);
+
+        boolean autoBlock = GuardStore.autoBlockPublic(this);
+        Button autoBlockButton = autoBlock ? dangerButton("⛔ BASE PÚBLICA: BLOQUEIO AUTOMÁTICO ATIVO") : actionButton("🔔 BASE PÚBLICA: SÓ AVISAR");
+        autoBlockButton.setOnClickListener(v -> {
+            GuardStore.setAutoBlockPublic(this, !GuardStore.autoBlockPublic(this));
+            render();
+        });
+        root.addView(autoBlockButton);
+        root.addView(infoText(autoBlock
+                ? "Um número encontrado exatamente na base pública será bloqueado, exceto se estiver nos contactos ou na lista segura."
+                : "Modo conservador: um número encontrado na base pública gera aviso de POSSÍVEL BURLA, mas a chamada não é bloqueada."));
+
+        EditText lookup = phoneInput("Consultar número na base");
+        root.addView(lookup);
+        Button lookupButton = actionButton("🔎 CONSULTAR BASE");
+        lookupButton.setOnClickListener(v -> lookupSpamNumber(lookup.getText().toString().trim()));
+        root.addView(lookupButton);
+
         root.addView(sectionTitle("LISTAS DE PROTEÇÃO"));
         root.addView(infoText("Contactos da agenda são considerados seguros. Também podes adicionar números manualmente."));
 
-        LinearLayout numberRow = new LinearLayout(this);
-        numberRow.setOrientation(LinearLayout.VERTICAL);
-        numberRow.setPadding(0, dp(4), 0, dp(4));
-
-        EditText number = new EditText(this);
-        number.setHint("Número de telefone");
-        number.setInputType(InputType.TYPE_CLASS_PHONE);
-        number.setTextSize(18);
-        number.setPadding(dp(14), dp(12), dp(14), dp(12));
-        numberRow.addView(number, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        EditText number = phoneInput("Número de telefone");
+        root.addView(number);
 
         Button safe = actionButton("✓ ADICIONAR COMO SEGURO");
         safe.setOnClickListener(v -> {
@@ -102,7 +139,7 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Número adicionado como seguro", Toast.LENGTH_SHORT).show();
             render();
         });
-        numberRow.addView(safe);
+        root.addView(safe);
 
         Button block = dangerButton("⛔ BLOQUEAR NÚMERO");
         block.setOnClickListener(v -> {
@@ -113,8 +150,7 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Número adicionado à lista de bloqueados", Toast.LENGTH_SHORT).show();
             render();
         });
-        numberRow.addView(block);
-        root.addView(numberRow);
+        root.addView(block);
 
         root.addView(infoCard("Números seguros", String.valueOf(GuardStore.safeCount(this))));
         root.addView(infoCard("Números bloqueados", String.valueOf(GuardStore.blockedCount(this))));
@@ -134,10 +170,46 @@ public class MainActivity extends Activity {
         }
 
         root.addView(sectionTitle("PRIVACIDADE"));
-        root.addView(infoText("A análise é feita localmente no telemóvel. A V1 não envia mensagens, contactos ou chamadas para um servidor."));
-        root.addView(infoText("RJP Guard é uma ajuda preventiva. Nunca substitui a confirmação direta com familiares, bancos ou autoridades."));
+        root.addView(infoText("A análise das mensagens e a consulta da base descarregada são feitas localmente. Só a atualização periódica descarrega o ficheiro público anti-spam."));
+        root.addView(infoText("RJP Guard é uma ajuda preventiva. Bases comunitárias podem conter erros; confirma sempre a identidade por um canal conhecido antes de transferir dinheiro ou partilhar códigos."));
 
         setContentView(scroll);
+    }
+
+    private EditText phoneInput(String hint) {
+        EditText input = new EditText(this);
+        input.setHint(hint);
+        input.setInputType(InputType.TYPE_CLASS_PHONE);
+        input.setTextSize(18);
+        input.setPadding(dp(14), dp(12), dp(14), dp(12));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, dp(4), 0, dp(4));
+        input.setLayoutParams(lp);
+        return input;
+    }
+
+    private void lookupSpamNumber(String number) {
+        if (number.isEmpty()) {
+            Toast.makeText(this, "Introduz um número.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (GuardStore.isSafe(this, number)) {
+            resultDialog("🟢 SEGURO", "Este número está na tua lista segura.");
+            return;
+        }
+        if (GuardStore.isBlocked(this, number)) {
+            resultDialog("🔴 BLOQUEADO", "Este número está na tua lista pessoal de bloqueados.");
+            return;
+        }
+        if (SpamDatabase.get(this).isKnownSpam(number)) {
+            resultDialog("🔴 POSSÍVEL BURLA", "O número foi encontrado na base pública anti-spam. Tipo: " + SpamDatabase.get(this).getType(number) + ".");
+        } else {
+            resultDialog("🟡 NÃO ENCONTRADO", "O número não consta da base pública atual. Isto não garante que seja seguro.");
+        }
+    }
+
+    private void resultDialog(String title, String message) {
+        new AlertDialog.Builder(this).setTitle(title).setMessage(message).setPositiveButton("OK", null).show();
     }
 
     private void testAnalyzer() {

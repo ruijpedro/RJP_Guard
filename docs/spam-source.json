@@ -1,0 +1,13 @@
+{
+  "source": "CallShield Community Database",
+  "mode": "runtime_https_download",
+  "url": "https://raw.githubusercontent.com/SysAdminDoc/CallShield/master/data/spam_numbers.json",
+  "local_storage": "SQLite",
+  "lookup_during_call": "local_only",
+  "auto_refresh": "when app opens and cache is older than 7 days",
+  "import_scope": "exact phone-number records only",
+  "portuguese_country_code_matching": "+351 / local 9-digit equivalent",
+  "default_action_on_match": "warn",
+  "optional_action_on_match": "block",
+  "safe_contacts_override": true
+}

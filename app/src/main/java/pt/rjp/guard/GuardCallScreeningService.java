@@ -19,38 +19,68 @@ public class GuardCallScreeningService extends CallScreeningService {
         Uri handle = callDetails.getHandle();
         String number = handle != null ? handle.getSchemeSpecificPart() : "";
 
-        boolean blocked = GuardStore.isBlocked(this, number);
         boolean safe = GuardStore.isSafe(this, number) || isInContacts(number);
+        boolean manuallyBlocked = GuardStore.isBlocked(this, number);
+        boolean publicSpam = !safe && SpamDatabase.get(this).isKnownSpam(number);
 
-        CallResponse response;
-        if (blocked) {
-            response = new CallResponse.Builder()
-                    .setDisallowCall(true)
-                    .setRejectCall(true)
-                    .setSilenceCall(true)
-                    .setSkipCallLog(false)
-                    .setSkipNotification(false)
-                    .build();
-            respondToCall(callDetails, response);
-            GuardNotifier.show(this, "🔴 CHAMADA BLOQUEADA", "Número marcado como bloqueado no RJP Guard.", true);
-            addHistory("CHAMADA BLOQUEADA", number);
+        if (safe) {
+            allow(callDetails);
             return;
         }
 
-        response = new CallResponse.Builder()
+        if (manuallyBlocked) {
+            block(callDetails);
+            GuardNotifier.show(this, "🔴 CHAMADA BLOQUEADA", "Número bloqueado manualmente no RJP Guard.", true);
+            addHistory("CHAMADA BLOQUEADA — lista pessoal", number);
+            return;
+        }
+
+        if (publicSpam) {
+            String type = SpamDatabase.get(this).getType(number);
+            if (GuardStore.autoBlockPublic(this)) {
+                block(callDetails);
+                GuardNotifier.show(this, "🔴 POSSÍVEL BURLA — BLOQUEADA",
+                        "Este número consta numa base pública anti-spam" + friendlyType(type) + ".", true);
+                addHistory("POSSÍVEL BURLA — base pública — bloqueada", number);
+            } else {
+                allow(callDetails);
+                GuardNotifier.show(this, "🔴 POSSÍVEL BURLA",
+                        "Este número consta numa base pública anti-spam" + friendlyType(type) + ". Confirme a identidade antes de partilhar dados ou dinheiro.", true);
+                addHistory("POSSÍVEL BURLA — base pública", number);
+            }
+            return;
+        }
+
+        allow(callDetails);
+        GuardNotifier.show(this, "🟡 ATENÇÃO • NÚMERO DESCONHECIDO",
+                "A chamada foi permitida. Não partilhe códigos, dados bancários ou faça transferências por pedido do interlocutor.", false);
+        addHistory("ATENÇÃO — número desconhecido", number);
+    }
+
+    private void allow(Call.Details details) {
+        respondToCall(details, new CallResponse.Builder()
                 .setDisallowCall(false)
                 .setRejectCall(false)
                 .setSilenceCall(false)
                 .setSkipCallLog(false)
                 .setSkipNotification(false)
-                .build();
-        respondToCall(callDetails, response);
+                .build());
+    }
 
-        if (!safe) {
-            GuardNotifier.show(this, "🟡 ATENÇÃO • NÚMERO DESCONHECIDO",
-                    "A chamada foi permitida. Não partilhe códigos, dados bancários ou faça transferências por pedido do interlocutor.", false);
-            addHistory("ATENÇÃO — número desconhecido", number);
-        }
+    private void block(Call.Details details) {
+        respondToCall(details, new CallResponse.Builder()
+                .setDisallowCall(true)
+                .setRejectCall(true)
+                .setSilenceCall(true)
+                .setSkipCallLog(false)
+                .setSkipNotification(false)
+                .build());
+    }
+
+    private String friendlyType(String type) {
+        if (type == null || type.isEmpty() || "spam".equalsIgnoreCase(type)) return "";
+        String clean = type.replace('_', ' ').toLowerCase(Locale.ROOT);
+        return " (" + clean + ")";
     }
 
     private boolean isInContacts(String number) {

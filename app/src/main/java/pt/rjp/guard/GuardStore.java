@@ -17,6 +17,7 @@ public final class GuardStore {
     private static final String SAFE = "safe_numbers";
     private static final String BLOCKED = "blocked_numbers";
     private static final String HISTORY = "history_json";
+    private static final String AUTO_BLOCK_PUBLIC = "auto_block_public";
 
     private GuardStore() {}
 
@@ -70,6 +71,15 @@ public final class GuardStore {
     public static String normalizeNumber(String value) {
         if (value == null) return "";
         return value.replaceAll("[^0-9+]", "");
+    }
+
+
+    public static boolean autoBlockPublic(Context c) {
+        return prefs(c).getBoolean(AUTO_BLOCK_PUBLIC, false);
+    }
+
+    public static void setAutoBlockPublic(Context c, boolean enabled) {
+        prefs(c).edit().putBoolean(AUTO_BLOCK_PUBLIC, enabled).apply();
     }
 
     public static void addHistory(Context c, String entry) {
