@@ -13,86 +13,55 @@ import java.util.Date;
 import java.util.Locale;
 
 public class GuardCallScreeningService extends CallScreeningService {
-
-    @Override
-    public void onScreenCall(Call.Details callDetails) {
+    @Override public void onScreenCall(Call.Details callDetails) {
         Uri handle = callDetails.getHandle();
         String number = handle != null ? handle.getSchemeSpecificPart() : "";
+        boolean contact = isInContacts(number);
+        ReputationEngine.Result result = ReputationEngine.lookup(this, number, contact);
 
-        boolean safe = GuardStore.isSafe(this, number) || isInContacts(number);
-        boolean manuallyBlocked = GuardStore.isBlocked(this, number);
-        boolean publicSpam = !safe && SpamDatabase.get(this).isKnownSpam(number);
+        if (result.verdict == ReputationEngine.Verdict.SAFE) { allow(callDetails); return; }
 
-        if (safe) {
-            allow(callDetails);
-            return;
-        }
-
-        if (manuallyBlocked) {
+        if (result.verdict == ReputationEngine.Verdict.BLOCKED) {
             block(callDetails);
-            GuardNotifier.show(this, "🔴 CHAMADA BLOQUEADA", "Número bloqueado manualmente no RJP Guard.", true);
-            addHistory("CHAMADA BLOQUEADA — lista pessoal", number);
+            GuardNotifier.show(this, "🔴 CHAMADA BLOQUEADA", result.detail + " • Fonte: " + result.source, true);
+            addHistory("CHAMADA BLOQUEADA — " + result.source, number);
             return;
         }
 
-        if (publicSpam) {
-            String type = SpamDatabase.get(this).getType(number);
+        if (result.verdict == ReputationEngine.Verdict.SCAM) {
             if (GuardStore.autoBlockPublic(this)) {
                 block(callDetails);
-                GuardNotifier.show(this, "🔴 POSSÍVEL BURLA — BLOQUEADA",
-                        "Este número consta numa base pública anti-spam" + friendlyType(type) + ".", true);
-                addHistory("POSSÍVEL BURLA — base pública — bloqueada", number);
+                GuardNotifier.show(this, "🔴 POSSÍVEL BURLA — BLOQUEADA", result.detail + " • Fonte: " + result.source, true);
+                addHistory("POSSÍVEL BURLA — " + result.source + " — bloqueada", number);
             } else {
                 allow(callDetails);
-                GuardNotifier.show(this, "🔴 POSSÍVEL BURLA",
-                        "Este número consta numa base pública anti-spam" + friendlyType(type) + ". Confirme a identidade antes de partilhar dados ou dinheiro.", true);
-                addHistory("POSSÍVEL BURLA — base pública", number);
+                GuardNotifier.show(this, "🔴 POSSÍVEL BURLA", result.detail + ". Confirme a identidade antes de partilhar dados, códigos ou dinheiro.", true);
+                addHistory("POSSÍVEL BURLA — " + result.source, number);
             }
             return;
         }
 
         allow(callDetails);
-        GuardNotifier.show(this, "🟡 ATENÇÃO • NÚMERO DESCONHECIDO",
-                "A chamada foi permitida. Não partilhe códigos, dados bancários ou faça transferências por pedido do interlocutor.", false);
-        addHistory("ATENÇÃO — número desconhecido", number);
+        GuardNotifier.show(this, result.title,
+                result.detail + " Não partilhe códigos, dados bancários nem faça transferências por pedido inesperado.", false);
+        addHistory("ATENÇÃO — " + result.source, number);
     }
 
     private void allow(Call.Details details) {
-        respondToCall(details, new CallResponse.Builder()
-                .setDisallowCall(false)
-                .setRejectCall(false)
-                .setSilenceCall(false)
-                .setSkipCallLog(false)
-                .setSkipNotification(false)
-                .build());
+        respondToCall(details, new CallResponse.Builder().setDisallowCall(false).setRejectCall(false).setSilenceCall(false).setSkipCallLog(false).setSkipNotification(false).build());
     }
 
     private void block(Call.Details details) {
-        respondToCall(details, new CallResponse.Builder()
-                .setDisallowCall(true)
-                .setRejectCall(true)
-                .setSilenceCall(true)
-                .setSkipCallLog(false)
-                .setSkipNotification(false)
-                .build());
-    }
-
-    private String friendlyType(String type) {
-        if (type == null || type.isEmpty() || "spam".equalsIgnoreCase(type)) return "";
-        String clean = type.replace('_', ' ').toLowerCase(Locale.ROOT);
-        return " (" + clean + ")";
+        respondToCall(details, new CallResponse.Builder().setDisallowCall(true).setRejectCall(true).setSilenceCall(true).setSkipCallLog(false).setSkipNotification(false).build());
     }
 
     private boolean isInContacts(String number) {
         if (number == null || number.isEmpty()) return false;
         if (checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) return false;
         Uri uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number));
-        try (Cursor cursor = getContentResolver().query(uri,
-                new String[]{ContactsContract.PhoneLookup._ID}, null, null, null)) {
+        try (Cursor cursor = getContentResolver().query(uri, new String[]{ContactsContract.PhoneLookup._ID}, null, null, null)) {
             return cursor != null && cursor.moveToFirst();
-        } catch (Exception ignored) {
-            return false;
-        }
+        } catch (Exception ignored) { return false; }
     }
 
     private void addHistory(String label, String number) {
@@ -101,8 +70,7 @@ public class GuardCallScreeningService extends CallScreeningService {
     }
 
     private String mask(String number) {
-        String n = GuardStore.normalizeNumber(number);
-        if (n.length() <= 4) return n;
-        return "•••••" + n.substring(n.length() - 4);
+        String n = SpamDatabase.canonical(number); if (n.length() <= 4) return n;
+        return "•••••" + n.substring(n.length()-4);
     }
 }

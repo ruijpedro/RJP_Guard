@@ -1,0 +1,26 @@
+{
+  "version": "3.1.0",
+  "sources": [
+    {
+      "id": "anacom_pnn",
+      "name": "ANACOM — Plano Nacional de Numeração",
+      "purpose": "Classificação/validação de gamas de numeração portuguesas; não é blacklist de spam",
+      "url": "https://www.anacom.pt/render.jsp?categoryId=423086",
+      "official_information_updated": "2026-07-29",
+      "mode": "regras locais derivadas das gamas oficiais"
+    },
+    {
+      "id": "callshield",
+      "name": "CallShield Community Database",
+      "purpose": "Reputação e deteção de números reportados como spam",
+      "url": "https://github.com/SysAdminDoc/CallShield",
+      "mode": "download periódico HTTPS + consulta SQLite local"
+    },
+    {
+      "id": "rjp_local",
+      "name": "RJP Guard Local",
+      "purpose": "Números seguros, bloqueados e reportados pelo utilizador",
+      "mode": "armazenamento apenas no dispositivo"
+    }
+  ]
+}

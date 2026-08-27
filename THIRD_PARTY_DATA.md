@@ -1,18 +1,14 @@
-# Third-party data used by RJP Guard
+# Fontes e dados de terceiros — RJP Guard 3.1
 
-## CallShield public spam feed
+## CallShield
 
-RJP Guard V1.2 can download the public CallShield legacy spam-number feed directly from its upstream repository:
+Projeto: https://github.com/SysAdminDoc/CallShield
 
-https://raw.githubusercontent.com/SysAdminDoc/CallShield/master/data/spam_numbers.json
+Usado como fonte pública/comunitária de números reportados como spam. A V3.1 descarrega o feed a partir do repositório do projeto e mantém a consulta local no dispositivo.
+Consulte o repositório original para licença, proveniência e atualizações.
 
-RJP Guard does not bundle the feed in this repository or APK. The app downloads it at runtime, caches exact phone-number records locally in SQLite, and performs incoming-call lookups against that local cache.
+## ANACOM — Plano Nacional de Numeração
 
-Upstream project:
-https://github.com/SysAdminDoc/CallShield
+Página oficial: https://www.anacom.pt/render.jsp?categoryId=423086
 
-The upstream repository documents source provenance, geography, licensing and redistribution policy for its feeds. RJP Guard intentionally ignores range/prefix feeds in V1.2 and imports only exact-number records from the legacy `spam_numbers.json` payload.
-
-## Portuguese directories not imported
-
-Portuguese collaborative directories such as QuemLigou and tellows.pt may contain useful local reports, but RJP Guard V1.2 does not scrape or redistribute their data. A future integration should use an official API, licensed feed, or explicit permission from the provider.
+A V3.1 não copia uma blacklist da ANACOM. Utiliza regras locais de classificação de gamas de numeração publicadas no PNN para contextualizar números portugueses.

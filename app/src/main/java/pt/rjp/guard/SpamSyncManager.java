@@ -77,7 +77,7 @@ public final class SpamSyncManager {
         HttpURLConnection conn = (HttpURLConnection) new URL(SOURCE_URL).openConnection();
         conn.setConnectTimeout(12000);
         conn.setReadTimeout(30000);
-        conn.setRequestProperty("User-Agent", "RJP-Guard/1.2");
+        conn.setRequestProperty("User-Agent", "RJP-Guard/3.1");
         conn.setInstanceFollowRedirects(true);
         int code = conn.getResponseCode();
         if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);
