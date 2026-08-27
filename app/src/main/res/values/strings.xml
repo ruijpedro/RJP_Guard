@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">RJP Guard</string>
+    <string name="notification_channel_name">Alertas RJP Guard</string>
+    <string name="notification_channel_desc">Avisos de chamadas e mensagens suspeitas</string>
+</resources>
