@@ -18,6 +18,7 @@ public final class GuardStore {
     private static final String SAFE = "safe_numbers";
     private static final String BLOCKED = "blocked_numbers";
     private static final String HISTORY = "history_json";
+    private static final String ALERT_HISTORY = "alert_history_json";
     private static final String AUTO_BLOCK_PUBLIC = "auto_block_public";
     private static final String LOCAL_REPORTS = "local_reports_json";
 
@@ -100,6 +101,36 @@ public final class GuardStore {
     public static String normalizeNumber(String value) { return value == null ? "" : value.replaceAll("[^0-9+]", ""); }
     public static boolean autoBlockPublic(Context c) { return prefs(c).getBoolean(AUTO_BLOCK_PUBLIC, false); }
     public static void setAutoBlockPublic(Context c, boolean enabled) { prefs(c).edit().putBoolean(AUTO_BLOCK_PUBLIC, enabled).apply(); }
+
+
+    public static void addAlert(Context c, AlertRecord alert) {
+        if (alert == null) return;
+        List<AlertRecord> list = getAlerts(c);
+        list.add(0, alert);
+        while (list.size() > 150) list.remove(list.size()-1);
+        JSONArray array = new JSONArray();
+        for (AlertRecord item : list) {
+            try { array.put(item.toJson()); } catch (JSONException ignored) {}
+        }
+        prefs(c).edit().putString(ALERT_HISTORY, array.toString()).apply();
+    }
+
+    public static List<AlertRecord> getAlerts(Context c) {
+        String raw = prefs(c).getString(ALERT_HISTORY, "[]");
+        List<AlertRecord> list = new ArrayList<>();
+        try {
+            JSONArray array = new JSONArray(raw);
+            for (int i=0;i<array.length();i++) {
+                JSONObject obj = array.optJSONObject(i);
+                if (obj != null) list.add(AlertRecord.fromJson(obj));
+            }
+        } catch (JSONException ignored) {}
+        return list;
+    }
+
+    public static void clearAlerts(Context c) {
+        prefs(c).edit().putString(ALERT_HISTORY, "[]").apply();
+    }
 
     public static void addHistory(Context c, String entry) {
         List<String> list = getHistory(c); list.add(0, entry); while (list.size() > 40) list.remove(list.size()-1);

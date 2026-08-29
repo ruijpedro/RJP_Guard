@@ -1,13 +1,21 @@
 {
-  "source": "CallShield Community Database",
-  "mode": "runtime_https_download",
-  "url": "https://raw.githubusercontent.com/SysAdminDoc/CallShield/master/data/spam_numbers.json",
-  "local_storage": "SQLite",
+  "version": "3.3.0",
+  "storage": "SQLite multi-source",
   "lookup_during_call": "local_only",
-  "auto_refresh": "when app opens and cache is older than 7 days",
-  "import_scope": "exact phone-number records only",
-  "portuguese_country_code_matching": "+351 / local 9-digit equivalent",
-  "default_action_on_match": "warn",
-  "optional_action_on_match": "block",
-  "safe_contacts_override": true
+  "sources": {
+    "CallShield": {
+      "mode": "runtime_https_download",
+      "url": "https://raw.githubusercontent.com/SysAdminDoc/CallShield/master/data/spam_numbers.json",
+      "auto_refresh": "7 days",
+      "decision": "possible_scam",
+      "safe_contacts_override": true
+    },
+    "FTC DNC": {
+      "mode": "runtime_https_daily_csv",
+      "url_template": "https://www.ftc.gov/sites/default/files/DNC_Complaint_Numbers_YYYY-MM-DD.csv",
+      "auto_refresh": "1 day",
+      "decision": "attention_if_isolated",
+      "note": "consumer reports are not verified by FTC"
+    }
+  }
 }

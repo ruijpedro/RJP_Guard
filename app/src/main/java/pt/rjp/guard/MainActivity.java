@@ -4,6 +4,8 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.role.RoleManager;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -26,7 +28,10 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class MainActivity extends Activity {
     private static final int ROLE_REQUEST = 1001;
@@ -72,7 +77,7 @@ public class MainActivity extends Activity {
     private void requestInitialSpamSync() {
         if (initialSyncRequested) return;
         initialSyncRequested = true;
-        SpamSyncManager.autoSyncIfNeeded(this, (ok, message, count) -> { if (ok && root != null) render(); });
+        MultiSourceSyncManager.autoSyncIfNeeded(this);
     }
 
     private void render() {
@@ -91,7 +96,7 @@ public class MainActivity extends Activity {
         logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         root.addView(logo, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(172)));
 
-        TextView version = infoText("RJP Guard V3.1 • Proteção local contra chamadas e mensagens suspeitas");
+        TextView version = infoText("RJP Guard V3.3 • Proteção local com múltiplas fontes nacionais e internacionais");
         version.setGravity(Gravity.CENTER);
         root.addView(version);
 
@@ -108,38 +113,53 @@ public class MainActivity extends Activity {
         root.addView(notifButton);
 
         root.addView(sectionTitle("FONTES DE PROTEÇÃO"));
-        long dbCount = SpamDatabase.get(this).count();
-        String lastSync = SpamDatabase.get(this).meta("last_sync", "Ainda não atualizada");
-        String versionDb = SpamDatabase.get(this).meta("version", "");
+        SpamDatabase spamDb = SpamDatabase.get(this);
+        long dbCount = spamDb.count();
+        long callShieldCount = spamDb.countBySource("CallShield");
+        long ftcCount = spamDb.countBySource("FTC DNC");
+        String callShieldLast = spamDb.meta("callshield_last_sync", spamDb.meta("last_sync", "Ainda não atualizada"));
+        String callShieldVersion = spamDb.meta("callshield_version", spamDb.meta("version", ""));
+        String ftcLast = spamDb.meta("ftc_last_sync", "Ainda não atualizada");
+        String ftcDate = spamDb.meta("ftc_source_date", "");
 
-        root.addView(sourceCard("🇵🇹 ANACOM", "Plano Nacional de Numeração", "Regras oficiais • " + PortugalNumbering.SOURCE_UPDATED, true));
-        root.addView(infoText("A ANACOM valida e classifica as gamas nacionais; não é uma blacklist de burlas."));
-
+        root.addView(sourceCard("🇵🇹 ANACOM", "Plano Nacional de Numeração", "Fonte oficial • " + PortugalNumbering.SOURCE_UPDATED, true));
+        root.addView(infoText("A ANACOM valida e classifica gamas nacionais. Não é uma blacklist de burlas e por isso nunca é usada isoladamente para marcar fraude."));
         Button anacom = secondaryButton("ABRIR PESQUISA OFICIAL ANACOM");
         anacom.setOnClickListener(v -> safeStartActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(PortugalNumbering.SOURCE_URL))));
         root.addView(anacom);
 
-        root.addView(sourceCard("🛡️ CallShield", "Base comunitária anti-spam", dbCount + " números locais • " + lastSync, dbCount > 0));
-        if (!versionDb.isEmpty()) root.addView(infoText("Versão da base CallShield: " + versionDb));
-        root.addView(infoText("A base é descarregada por HTTPS e consultada localmente. Durante a chamada o número não é enviado para a Internet."));
+        root.addView(sourceCard("🛡️ CallShield", "Base internacional agregada", callShieldCount + " números • " + callShieldLast, callShieldCount > 0));
+        if (!callShieldVersion.isEmpty()) root.addView(infoText("Versão CallShield: " + callShieldVersion + ". A CallShield agrega várias fontes públicas/comunitárias e continua a ser a principal fonte de reputação do RJP Guard."));
 
-        Button updateDb = actionButton("↻ ATUALIZAR CALLSHIELD");
+        root.addView(sourceCard("🇺🇸 FTC Do Not Call", "Base oficial de chamadas indesejadas/robocalls", ftcCount + " números • " + ftcLast + (ftcDate.isEmpty()?"":" • ficheiro "+ftcDate), ftcCount > 0));
+        root.addView(infoText("A FTC publica relatos de consumidores. Estes registos são úteis como sinal adicional, mas não são verificados pela FTC e não significam automaticamente burla."));
+        Button ftcPage = secondaryButton("ABRIR FONTE OFICIAL FTC");
+        ftcPage.setOnClickListener(v -> safeStartActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(FtcDncSyncManager.SOURCE_PAGE))));
+        root.addView(ftcPage);
+
+        root.addView(sourceCard("🇵🇹 tellows Portugal", "Reputação portuguesa", "Preparada • requer API/licença oficial", false));
+        root.addView(infoText("A integração está preparada, mas fica desativada até existir uma chave/licença válida. O RJP Guard não faz scraping de bases nacionais."));
+
+        root.addView(infoCard("Números únicos na base local", String.valueOf(dbCount)));
+        root.addView(infoText("As bases são descarregadas por HTTPS e consultadas localmente. Durante uma chamada não é feita uma pesquisa online do número."));
+
+        Button updateDb = actionButton("↻ ATUALIZAR TODAS AS FONTES");
         updateDb.setOnClickListener(v -> {
-            updateDb.setEnabled(false); updateDb.setText("A atualizar…");
-            SpamSyncManager.sync(this, (ok, message, count) -> {
-                Toast.makeText(this, message + (ok ? " • " + count + " números" : ""), Toast.LENGTH_LONG).show();
+            updateDb.setEnabled(false); updateDb.setText("A atualizar fontes…");
+            MultiSourceSyncManager.syncAll(this, message -> {
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show();
                 render();
             });
         });
         root.addView(updateDb);
 
         boolean autoBlock = GuardStore.autoBlockPublic(this);
-        Button autoBlockButton = autoBlock ? dangerButton("⛔ CALLSHIELD: BLOQUEIO AUTOMÁTICO ATIVO") : secondaryButton("🔔 CALLSHIELD: SÓ AVISAR");
+        Button autoBlockButton = autoBlock ? dangerButton("⛔ BASES PÚBLICAS: BLOQUEIO AUTOMÁTICO ATIVO") : secondaryButton("🔔 BASES PÚBLICAS: SÓ AVISAR");
         autoBlockButton.setOnClickListener(v -> { GuardStore.setAutoBlockPublic(this, !GuardStore.autoBlockPublic(this)); render(); });
         root.addView(autoBlockButton);
         root.addView(infoText(autoBlock
-                ? "Números encontrados na CallShield são bloqueados, exceto contactos e números seguros."
-                : "Modo conservador: a CallShield gera POSSÍVEL BURLA, mas a chamada continua a tocar."));
+                ? "Números classificados como POSSÍVEL BURLA pelas fontes de reputação são bloqueados, exceto contactos e números seguros."
+                : "Modo conservador: fontes públicas geram aviso; só sinais fortes como CallShield são tratados como POSSÍVEL BURLA. Relatos FTC isolados não são bloqueados automaticamente."));
 
         root.addView(sectionTitle("VERIFICAR NÚMERO"));
         EditText lookup = phoneInput("Ex.: +351 912 345 678");
@@ -185,10 +205,26 @@ public class MainActivity extends Activity {
             pendingSharedText = "";
         }
 
-        root.addView(sectionTitle("ÚLTIMOS ALERTAS"));
-        List<String> history = GuardStore.getHistory(this);
-        if (history.isEmpty()) root.addView(infoText("Ainda não existem alertas."));
-        else for (int i=0;i<Math.min(12, history.size());i++) root.addView(historyItem(history.get(i)));
+        root.addView(sectionTitle("HISTÓRICO DE ALERTAS"));
+        root.addView(infoText("Os alertas guardam localmente quem contactou: número quando disponível, remetente, app, data/hora e motivo. Toca num alerta para ver os detalhes."));
+        List<AlertRecord> alerts = GuardStore.getAlerts(this);
+        if (alerts.isEmpty()) {
+            root.addView(infoText("Ainda não existem alertas identificados nesta versão."));
+            List<String> legacyHistory = GuardStore.getHistory(this);
+            if (!legacyHistory.isEmpty()) {
+                root.addView(infoText("Existem registos de versões anteriores, mas esses registos não guardavam o número completo e não é possível recuperá-lo retroativamente."));
+            }
+        } else {
+            for (int i=0;i<Math.min(30, alerts.size());i++) root.addView(alertItem(alerts.get(i)));
+            Button clearAlerts = dangerButton("🗑 APAGAR HISTÓRICO DE ALERTAS");
+            clearAlerts.setOnClickListener(v -> new AlertDialog.Builder(this)
+                    .setTitle("Apagar histórico?")
+                    .setMessage("Serão apagados os alertas guardados neste telemóvel. As listas de números seguros e bloqueados não serão alteradas.")
+                    .setPositiveButton("Apagar", (d, w) -> { GuardStore.clearAlerts(this); render(); })
+                    .setNegativeButton("Cancelar", null)
+                    .show());
+            root.addView(clearAlerts);
+        }
 
         root.addView(sectionTitle("PRIVACIDADE"));
         root.addView(infoText("Chamadas e mensagens são analisadas no próprio telemóvel. A rede é usada apenas para atualizar fontes públicas configuradas, como a CallShield."));
@@ -311,8 +347,77 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT); lp.setMargins(0,dp(5),0,dp(5)); row.setLayoutParams(lp); row.setElevation(dp(2)); return row;
     }
 
-    private TextView historyItem(String text) {
-        TextView t=new TextView(this); t.setText(text); t.setTextSize(14); t.setTextColor(Color.rgb(16,24,40)); t.setBackgroundColor(Color.WHITE); t.setPadding(dp(14),dp(12),dp(14),dp(12)); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT); lp.setMargins(0,dp(3),0,dp(3)); t.setLayoutParams(lp); return t;
+    private View alertItem(AlertRecord alert) {
+        LinearLayout box = card();
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.START);
+
+        String when = new SimpleDateFormat("dd/MM/yyyy • HH:mm", Locale.getDefault()).format(new Date(alert.timestamp));
+        TextView top = new TextView(this);
+        top.setText(alert.level + "   " + alert.channel);
+        top.setTextSize(16);
+        top.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        top.setTextColor(alert.level.contains("🔴") ? Color.rgb(179,38,30) : Color.rgb(166,99,0));
+
+        String who = !alert.number.isEmpty() ? alert.number : alert.sender;
+        TextView contact = new TextView(this);
+        contact.setText("📞 " + (who.isEmpty() ? "Remetente não identificado" : who));
+        contact.setTextSize(18);
+        contact.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        contact.setTextColor(Color.rgb(7,27,58));
+        contact.setPadding(0,dp(6),0,0);
+
+        TextView meta = new TextView(this);
+        StringBuilder metaText = new StringBuilder(when);
+        if (!alert.sender.isEmpty() && !alert.sender.equals(who)) metaText.append(" • ").append(alert.sender);
+        if (!alert.app.isEmpty()) metaText.append(" • ").append(alert.app);
+        meta.setText(metaText.toString());
+        meta.setTextSize(13);
+        meta.setTextColor(Color.rgb(71,84,103));
+        meta.setPadding(0,dp(4),0,0);
+
+        TextView reason = new TextView(this);
+        reason.setText(alert.reason);
+        reason.setTextSize(14);
+        reason.setTextColor(Color.rgb(52,64,84));
+        reason.setPadding(0,dp(7),0,0);
+
+        box.addView(top);
+        box.addView(contact);
+        box.addView(meta);
+        if (!alert.reason.isEmpty()) box.addView(reason);
+        box.setClickable(true);
+        box.setOnClickListener(v -> showAlertDetails(alert));
+        return box;
+    }
+
+    private void showAlertDetails(AlertRecord alert) {
+        String when = new SimpleDateFormat("dd/MM/yyyy 'às' HH:mm:ss", Locale.getDefault()).format(new Date(alert.timestamp));
+        StringBuilder msg = new StringBuilder();
+        msg.append("Data/hora: ").append(when);
+        msg.append("\nTipo: ").append(alert.channel);
+        if (!alert.number.isEmpty()) msg.append("\nNúmero: ").append(alert.number);
+        if (!alert.sender.isEmpty()) msg.append("\nRemetente: ").append(alert.sender);
+        if (!alert.app.isEmpty()) msg.append("\nApp/origem: ").append(alert.app);
+        if (!alert.source.isEmpty()) msg.append("\nFonte do alerta: ").append(alert.source);
+        if (!alert.action.isEmpty()) msg.append("\nAção: ").append(alert.action);
+        if (!alert.reason.isEmpty()) msg.append("\n\nMotivo: ").append(alert.reason);
+        if (!alert.snippet.isEmpty()) msg.append("\n\nTrecho: ").append(alert.snippet);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle(alert.level)
+                .setMessage(msg.toString())
+                .setPositiveButton("Fechar", null);
+        if (!alert.number.isEmpty()) {
+            builder.setNeutralButton("Copiar número", (d, w) -> {
+                ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                if (clipboard != null) {
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Número RJP Guard", alert.number));
+                    Toast.makeText(this, "Número copiado", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+        builder.show();
     }
 
     private Button actionButton(String text) {

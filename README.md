@@ -1,95 +1,111 @@
-# RJP Guard — V3.1
+# RJP Guard — V3.3
 
-Aplicação Android para proteção local contra chamadas, números e mensagens suspeitas, orientada para Portugal.
+Aplicação Android para proteção local contra chamadas, números e mensagens suspeitas, orientada para Portugal e com base local multi-fonte.
 
-## Fontes da V3.1
+## Novidade principal da V3.3 — base multi-fonte
 
-### 1. ANACOM — Plano Nacional de Numeração
+A base SQLite deixou de ter apenas uma origem por número. Cada número pode agora manter registos independentes por fonte (`number + source`) e o motor junta a proveniência no alerta.
 
-O RJP Guard inclui uma camada local de classificação das gamas portuguesas baseada no Plano Nacional de Numeração (PNN) da ANACOM.
+### Fontes ativas
 
-É usada para identificar, entre outras, gamas de:
-- móvel (91, 92, 93, 96)
-- telefone fixo (2)
-- telefone nómada (30)
-- M2M/acesso móvel à Internet (49)
-- chamada grátis (800)
-- custos partilhados (808/809)
-- acesso universal (707/708)
-- tarifa única por chamada (760/761/762)
-- tarifa majorada utilitária (71)
-- número pessoal (884)
+1. **ANACOM — Plano Nacional de Numeração (Portugal)**
+   - camada oficial de validação/classificação de numeração portuguesa;
+   - não é blacklist e nunca é usada isoladamente para afirmar burla.
 
-**Importante:** a ANACOM não funciona como blacklist de burlas. Esta camada classifica a numeração e ajuda a explicar o tipo de número.
+2. **CallShield**
+   - continua como fonte principal de reputação anti-spam;
+   - feed público descarregado por HTTPS para SQLite;
+   - o projeto CallShield agrega várias fontes públicas/comunitárias e mantém proveniência própria.
 
-### 2. CallShield
+3. **FTC Do Not Call — Federal Trade Commission (EUA)**
+   - nova fonte oficial internacional;
+   - o RJP Guard procura automaticamente o ficheiro CSV diário mais recente publicado pela FTC;
+   - os números são guardados localmente com data da fonte;
+   - são relatos de consumidores e **não são verificados pela FTC**, por isso um registo FTC isolado gera `ATENÇÃO / NÚMERO REPORTADO` e não `POSSÍVEL BURLA`.
 
-A CallShield mantém-se como fonte de reputação/spam. O feed é descarregado por HTTPS e guardado em SQLite.
-Durante uma chamada, o RJP Guard consulta apenas a cópia local — não envia o número recebido para a Internet.
+### Fonte preparada, mas não ativada
 
-### 3. RJP Guard Local
+4. **tellows Portugal**
+   - integração identificada como futura fonte portuguesa de reputação;
+   - requer API/parceria/licença válida;
+   - a V3.3 não faz scraping nem reutiliza dados sem autorização.
 
-O utilizador pode:
-- marcar números como seguros;
-- bloquear números;
-- reportar localmente por categoria: Burla, Telemarketing, Falso banco, Falso familiar, Encomenda/CTT, Energia/telecomunicações, Chamada automática ou Outro.
+### Fonte pessoal
+
+5. **RJP Guard Local**
+   - números seguros;
+   - números bloqueados/reportados;
+   - categorias locais de reporte.
 
 ## Ordem de decisão
 
 1. Contacto da agenda / lista segura → **SEGURO**
-2. Número bloqueado/reportado localmente → **BLOQUEADO**
-3. Número encontrado na CallShield → **POSSÍVEL BURLA**
-4. Gama ANACOM de tarifação sensível → **ATENÇÃO**
-5. Número nacional reconhecido mas sem denúncias → **NÚMERO SEM DENÚNCIAS CONHECIDAS**
-6. Restantes → **NÚMERO DESCONHECIDO**
+2. Número bloqueado/reportado pelo utilizador → **BLOQUEADO**
+3. CallShield → **POSSÍVEL BURLA / SPAM**
+4. FTC DNC isolada → **NÚMERO REPORTADO / ATENÇÃO**
+5. Gama ANACOM sensível → **ATENÇÃO**
+6. Número português reconhecido sem registos → **SEM DENÚNCIAS CONHECIDAS**
+7. Restantes → **NÚMERO DESCONHECIDO**
 
 Não são usadas percentagens.
 
-## Novidades da V3.1
+## Atualização das fontes
 
-- Motor único de reputação com indicação da **fonte do alerta**.
-- Camada Portugal/ANACOM.
-- CallShield mantida e atualizável.
-- Categorias de reporte local.
-- Verificação manual de número com tipo de numeração.
-- Verificação manual de mensagem/link.
-- **Partilhar → RJP Guard** para analisar texto proveniente de outra aplicação.
-- Deteção local reforçada de falso familiar, MB WAY, códigos, CTT, Finanças/IRS, urgência, links encurtados e pedidos de acesso remoto.
-- Bloqueio automático da CallShield continua opcional; por defeito é apenas aviso.
-- Histórico local com indicação da fonte.
+O botão **ATUALIZAR TODAS AS FONTES** atualiza:
+- CallShield;
+- FTC DNC.
+
+A CallShield é verificada semanalmente. A FTC DNC pode ser verificada diariamente e o sincronizador recua até 10 dias para lidar com fins de semana e feriados.
+
+Durante uma chamada, não é feita pesquisa online do número: o `CallScreeningService` consulta apenas SQLite local para não depender de rede dentro da janela de decisão do Android.
+
+## Histórico V3.2 mantido
+
+A V3.3 mantém o Histórico de Alertas identificável:
+- número completo quando disponibilizado pelo Android;
+- nome/contacto quando reconhecido;
+- chamada ou app de mensagens;
+- data/hora;
+- motivo;
+- fonte(s);
+- ação tomada;
+- trecho da mensagem suspeita, quando aplicável.
 
 ## Privacidade
 
-- Análise de mensagens: local.
-- Verificação de chamadas: local.
-- Base CallShield: descarregada periodicamente e consultada localmente.
-- Lista RJP Guard: apenas no dispositivo.
-- Sem conta, sem analytics e sem envio do conteúdo das mensagens para servidores.
+- análise de chamadas e mensagens local;
+- bases externas apenas são descarregadas periodicamente;
+- sem conta;
+- sem sincronização entre telemóveis;
+- sem analytics;
+- sem envio do conteúdo das mensagens para servidores;
+- sem scraping de serviços de reputação.
 
-## Limitações
+## Limitações importantes
 
-- A camada ANACOM classifica gamas; não prova que um chamador seja legítimo.
-- O número apresentado numa chamada pode ser falsificado por spoofing.
-- A CallShield é uma base comunitária e pode ter falsos positivos/negativos.
-- A V3.1 não faz scraping de sites portugueses nem inclui bases sem licença/API de reutilização clara.
-- Não ouve nem transcreve o áudio de chamadas.
+- números de chamadas podem ser falsificados por spoofing;
+- um número reportado não prova que a chamada atual seja fraudulenta;
+- os dados FTC são relatos não verificados;
+- a ANACOM classifica numeração, não reputação;
+- a CallShield pode conter falsos positivos/negativos;
+- tellows não está ativa sem licença/API.
 
 ## Compilar no GitHub
 
 1. Criar um repositório GitHub.
-2. Colocar o conteúdo deste ZIP na raiz do repositório.
+2. Colocar o conteúdo deste ZIP na raiz.
 3. Abrir **Actions**.
 4. Executar **Build RJP Guard APK**.
-5. Descarregar o artefacto **RJP-Guard-debug-apk**.
-6. O APK encontra-se como `app-debug.apk`.
+5. Descarregar **RJP-Guard-debug-apk**.
+6. Instalar `app-debug.apk`.
 
 ## Identificação técnica
 
 - Package: `pt.rjp.guard`
-- Version name: `3.1.0`
-- Version code: `31`
+- Version name: `3.3.0`
+- Version code: `33`
 - Min Android: 10 / API 29
 - Target: Android 15 / API 35
 - Java: 17
 - Gradle GitHub: 8.11.1
-- Base: SQLite
+- Base: SQLite multi-fonte

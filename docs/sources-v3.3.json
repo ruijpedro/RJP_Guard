@@ -1,0 +1,54 @@
+{
+  "version": "3.3.0",
+  "policy": "multi-source, local lookup, no scraping",
+  "sources": [
+    {
+      "id": "anacom_pnn",
+      "name": "ANACOM — Plano Nacional de Numeração",
+      "country": "PT",
+      "role": "official_numbering_validation",
+      "active": true,
+      "url": "https://www.anacom.pt/render.jsp?categoryId=423086",
+      "official_information_updated": "2026-07-29",
+      "decision": "context_only"
+    },
+    {
+      "id": "callshield",
+      "name": "CallShield",
+      "country": "international",
+      "role": "spam_reputation_aggregator",
+      "active": true,
+      "url": "https://github.com/SysAdminDoc/CallShield",
+      "mode": "weekly HTTPS download + SQLite local lookup",
+      "decision": "possible_scam_when_hit"
+    },
+    {
+      "id": "ftc_dnc",
+      "name": "FTC Do Not Call Reported Calls Data",
+      "country": "US",
+      "role": "official_unwanted_call_reports",
+      "active": true,
+      "url": "https://www.ftc.gov/policy-notices/open-government/data-sets/do-not-call-data",
+      "mode": "latest daily CSV + SQLite local lookup",
+      "verified_reports": false,
+      "decision": "attention_when_isolated"
+    },
+    {
+      "id": "tellows_pt",
+      "name": "tellows Portugal",
+      "country": "PT",
+      "role": "phone_reputation",
+      "active": false,
+      "reason": "requires valid API/license/partnership; no scraping",
+      "url": "https://www.tellows.com/s/about-en/tellows-api-partnership-program"
+    },
+    {
+      "id": "rjp_local",
+      "name": "RJP Guard Local",
+      "country": "local",
+      "role": "user_allow_block_report",
+      "active": true,
+      "mode": "device only"
+    }
+  ]
+}
