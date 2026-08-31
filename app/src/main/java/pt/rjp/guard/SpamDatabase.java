@@ -61,7 +61,7 @@ public final class SpamDatabase extends SQLiteOpenHelper {
         if (candidates.isEmpty()) return out;
         StringBuilder q = new StringBuilder("SELECT number,source,type,reports,description,source_date FROM spam_numbers WHERE number IN (");
         for (int i=0;i<candidates.size();i++) { if (i>0) q.append(','); q.append('?'); }
-        q.append(") ORDER BY CASE source WHEN 'CallShield' THEN 1 WHEN 'FTC DNC' THEN 2 ELSE 9 END, reports DESC");
+        q.append(") ORDER BY CASE source WHEN 'CallShield' THEN 1 WHEN 'RJP Guard Community' THEN 2 WHEN 'FTC DNC' THEN 3 ELSE 9 END, reports DESC");
         try (Cursor c = getReadableDatabase().rawQuery(q.toString(), candidates.toArray(new String[0]))) {
             while (c.moveToNext()) out.add(new Hit(c.getString(0), c.getString(1), c.getString(2), c.getInt(3), c.getString(4), c.getString(5)));
         }

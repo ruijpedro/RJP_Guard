@@ -48,10 +48,17 @@ public class GuardNotificationListener extends NotificationListenerService {
         if (combined.length() < 8) return;
 
         RiskAnalyzer.Result result = RiskAnalyzer.analyze(combined);
+        boolean suppressedTrustedWarning = AppTrustStore.MODE_TRUSTED.equals(appMode) && result.level == RiskAnalyzer.Level.WARNING;
+        boolean alertGenerated = result.level != RiskAnalyzer.Level.SAFE && !suppressedTrustedWarning;
+        String scrutinyVerdict = result.level == RiskAnalyzer.Level.SCAM
+                ? "🔴 POSSÍVEL BURLA"
+                : result.level == RiskAnalyzer.Level.WARNING ? "🟡 ATENÇÃO" : "🟢 SEGURO";
+        AppTrustStore.recordScrutiny(this, sbn.getPackageName(), appName, scrutinyVerdict, alertGenerated);
+
         if (result.level == RiskAnalyzer.Level.SAFE) return;
         // Uma app marcada como confiável não gera avisos amarelos pouco conclusivos.
         // Padrões fortes (POSSÍVEL BURLA) continuam a ser sinalizados.
-        if (AppTrustStore.MODE_TRUSTED.equals(appMode) && result.level == RiskAnalyzer.Level.WARNING) return;
+        if (suppressedTrustedWarning) return;
 
         String number = extractNumber(title);
         if (number.isEmpty()) number = extractNumber(text);

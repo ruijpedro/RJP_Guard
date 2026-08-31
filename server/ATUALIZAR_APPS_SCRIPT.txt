@@ -1,0 +1,17 @@
+RJP GUARD COMMUNITY — ATUALIZAÇÃO DO APPS SCRIPT
+
+1. No editor Apps Script da folha RJP_Guard_DB, substitui o conteúdo de Código.gs pelo ficheiro Code.gs desta pasta.
+2. Guarda.
+3. Executa setupRjpGuard uma vez e aceita as autorizações.
+4. Vai a Implementar > Gerir implementações.
+5. Edita a implementação Web App existente.
+6. Escolhe Nova versão e Implementar.
+7. Mantém:
+   - Executar como: Eu
+   - Quem tem acesso: Qualquer pessoa
+8. O URL /exec deve manter-se igual ao já configurado na RJP Guard V3.6.
+
+Porque mudou:
+A versão anterior exigia um API_TOKEN no POST. Uma chave colocada numa APK pode ser extraída e não é um segredo real.
+Nesta versão, reportes comunitários usam validação, deduplicação e limitação básica por ID anónimo de instalação.
+Para distribuição pública de grande escala, recomenda-se posteriormente um backend com proteção de app (ex. App Check).

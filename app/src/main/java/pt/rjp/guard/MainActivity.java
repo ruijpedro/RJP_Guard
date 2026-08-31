@@ -37,8 +37,8 @@ public class MainActivity extends Activity {
     private static final int ROLE_REQUEST = 1001;
     private static final int PERMISSION_REQUEST = 1002;
     private static final String[] REPORT_CATEGORIES = {
-            "Burla", "Telemarketing", "Falso banco", "Falso familiar", "Encomenda / CTT",
-            "Energia / telecomunicações", "Chamada automática", "Outro"
+            "Telemarketing", "Burla", "Banco falso", "Falso familiar", "Encomenda/CTT",
+            "Energia/Telecomunicações", "Chamada automática", "Cobrança", "Spam", "Outro"
     };
 
     private LinearLayout root;
@@ -96,7 +96,7 @@ public class MainActivity extends Activity {
         logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         root.addView(logo, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(172)));
 
-        TextView version = infoText("RJP Guard V3.4 • Proteção local + gestão de apps confiáveis");
+        TextView version = infoText("RJP Guard V3.6 • Base Comunitária");
         version.setGravity(Gravity.CENTER);
         root.addView(version);
 
@@ -114,7 +114,13 @@ public class MainActivity extends Activity {
 
         root.addView(sectionTitle("APPS CONFIÁVEIS"));
         root.addView(infoText("O RJP Guard identifica a app pelo packageName real. Podes escolher: analisar normalmente, considerar a app confiável (ignora apenas avisos fracos) ou ignorar completamente as notificações dessa app."));
-        root.addView(infoCard("Apps observadas", String.valueOf(AppTrustStore.observedCount(this))));
+        View observedAppsCard = infoCard("Apps observadas • tocar para abrir", String.valueOf(AppTrustStore.observedCount(this)));
+        observedAppsCard.setClickable(true);
+        observedAppsCard.setFocusable(true);
+        observedAppsCard.setOnClickListener(v -> showObservedAppsDialog());
+        root.addView(observedAppsCard);
+        root.addView(infoCard("Apps já escrutinadas", String.valueOf(AppTrustStore.scrutinizedAppCount(this))));
+        root.addView(infoCard("Notificações escrutinadas", String.valueOf(AppTrustStore.totalScrutinyCount(this))));
         root.addView(infoCard("Regras personalizadas", String.valueOf(AppTrustStore.configuredCount(this))));
         Button trustedApps = secondaryButton("⚙ GERIR APPS CONFIÁVEIS");
         trustedApps.setOnClickListener(v -> showTrustedAppsDialog());
@@ -126,6 +132,8 @@ public class MainActivity extends Activity {
         long dbCount = spamDb.count();
         long callShieldCount = spamDb.countBySource("CallShield");
         long ftcCount = spamDb.countBySource("FTC DNC");
+        long communityCount = spamDb.countBySource(CommunitySyncManager.SOURCE_NAME);
+        String communityLast = spamDb.meta("community_last_sync", "Ainda não atualizada");
         String callShieldLast = spamDb.meta("callshield_last_sync", spamDb.meta("last_sync", "Ainda não atualizada"));
         String callShieldVersion = spamDb.meta("callshield_version", spamDb.meta("version", ""));
         String ftcLast = spamDb.meta("ftc_last_sync", "Ainda não atualizada");
@@ -145,6 +153,9 @@ public class MainActivity extends Activity {
         Button ftcPage = secondaryButton("ABRIR FONTE OFICIAL FTC");
         ftcPage.setOnClickListener(v -> safeStartActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(FtcDncSyncManager.SOURCE_PAGE))));
         root.addView(ftcPage);
+
+        root.addView(sourceCard("🇵🇹 RJP Guard Community", "Base comunitária própria", communityCount + " números • " + communityLast, communityCount > 0));
+        root.addView(infoText("Os reportes comunitários contêm apenas número, categoria e um identificador anónimo da instalação. Contactos, nomes e conteúdo de mensagens não são enviados."));
 
         root.addView(sourceCard("🇵🇹 tellows Portugal", "Reputação portuguesa", "Preparada • requer API/licença oficial", false));
         root.addView(infoText("A integração está preparada, mas fica desativada até existir uma chave/licença válida. O RJP Guard não faz scraping de bases nacionais."));
@@ -178,7 +189,7 @@ public class MainActivity extends Activity {
         root.addView(lookupButton);
 
         root.addView(sectionTitle("LISTAS RJP GUARD"));
-        root.addView(infoText("Contactos da agenda têm prioridade. Podes ainda marcar um número como seguro ou reportá-lo localmente."));
+        root.addView(infoText("Contactos da agenda têm prioridade. Um número reportado fica bloqueado localmente e podes optar por partilhar o reporte anónimo com a RJP Guard Community."));
         EditText number = phoneInput("Número de telefone");
         root.addView(number);
 
@@ -236,7 +247,7 @@ public class MainActivity extends Activity {
         }
 
         root.addView(sectionTitle("PRIVACIDADE"));
-        root.addView(infoText("Chamadas e mensagens são analisadas no próprio telemóvel. As regras de apps confiáveis também ficam apenas neste dispositivo. A rede é usada apenas para atualizar fontes públicas configuradas, como a CallShield."));
+        root.addView(infoText("Chamadas e mensagens são analisadas no próprio telemóvel. As regras de apps confiáveis também ficam apenas neste dispositivo. A rede é usada para atualizar as fontes configuradas e, apenas quando o utilizador confirma um reporte, enviar número + categoria + ID anónimo para a RJP Guard Community."));
         root.addView(infoText("A ANACOM classifica numeração; não certifica que uma chamada seja legítima. O caller ID pode ser falsificado (spoofing), por isso confirma pedidos sensíveis por um canal conhecido."));
 
         setContentView(scroll);
@@ -246,10 +257,25 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle("Categoria do reporte")
                 .setItems(REPORT_CATEGORIES, (dialog, which) -> {
-                    GuardStore.reportLocal(this, number, REPORT_CATEGORIES[which]);
+                    String category = REPORT_CATEGORIES[which];
+                    GuardStore.reportLocal(this, number, category);
                     field.setText("");
-                    Toast.makeText(this, "Número reportado e bloqueado: " + REPORT_CATEGORIES[which], Toast.LENGTH_LONG).show();
-                    render();
+                    new AlertDialog.Builder(this)
+                            .setTitle("Partilhar com a comunidade?")
+                            .setMessage("O bloqueio já ficou guardado neste telemóvel. Queres também enviar este número e a categoria ‘" + category + "’ para a RJP Guard Community?\n\nNão são enviados nomes, contactos nem mensagens.")
+                            .setPositiveButton("Partilhar", (d, w) -> {
+                                Toast.makeText(this, "Número bloqueado localmente. A enviar reporte…", Toast.LENGTH_SHORT).show();
+                                CommunityReportManager.report(this, number, category, (ok, message) -> {
+                                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                                    if (ok) CommunitySyncManager.sync(this, null);
+                                    render();
+                                });
+                            })
+                            .setNegativeButton("Só local", (d, w) -> {
+                                Toast.makeText(this, "Número bloqueado apenas neste telemóvel: " + category, Toast.LENGTH_LONG).show();
+                                render();
+                            })
+                            .show();
                 })
                 .setNegativeButton("Cancelar", null)
                 .show();
@@ -281,6 +307,66 @@ public class MainActivity extends Activity {
 
     private void resultDialog(String title, String message) {
         new AlertDialog.Builder(this).setTitle(title).setMessage(message).setPositiveButton("OK", null).show();
+    }
+
+    private void showObservedAppsDialog() {
+        List<AppTrustStore.AppRule> apps = AppTrustStore.all(this);
+        if (apps.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Apps observadas")
+                    .setMessage(isNotificationAccessEnabled()
+                            ? "Ainda não foram observadas notificações de outras apps. Assim que uma app gerar uma notificação, aparecerá aqui."
+                            : "O acesso às notificações ainda não está ativo. Ativa-o para o RJP Guard poder observar e escrutinar as notificações das apps autorizadas pelo Android.")
+                    .setPositiveButton("OK", null)
+                    .show();
+            return;
+        }
+
+        String[] labels = new String[apps.size()];
+        SimpleDateFormat fmt = new SimpleDateFormat("dd/MM/yyyy • HH:mm", Locale.getDefault());
+        for (int i = 0; i < apps.size(); i++) {
+            AppTrustStore.AppRule rule = apps.get(i);
+            String scrutiny;
+            if (rule.scrutinyCount > 0L) {
+                String when = rule.lastScrutinized > 0L ? fmt.format(new Date(rule.lastScrutinized)) : "sem data";
+                scrutiny = "✅ Escrutinada " + rule.scrutinyCount + (rule.scrutinyCount == 1 ? " vez" : " vezes")
+                        + " • " + rule.alertCount + (rule.alertCount == 1 ? " alerta" : " alertas")
+                        + "\nÚltima análise: " + when
+                        + (rule.lastVerdict.isEmpty() ? "" : " • " + rule.lastVerdict);
+            } else if (AppTrustStore.MODE_IGNORE.equals(rule.mode)) {
+                scrutiny = "⚪ Observada, mas não escrutinada • app configurada para IGNORAR";
+            } else {
+                scrutiny = "◻ Observada, ainda sem conteúdo escrutinado";
+            }
+            labels[i] = rule.label + "\n" + scrutiny + "\n" + rule.packageName;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Apps observadas / escrutinadas")
+                .setItems(labels, (dialog, which) -> showObservedAppDetails(apps.get(which)))
+                .setNegativeButton("Fechar", null)
+                .show();
+    }
+
+    private void showObservedAppDetails(AppTrustStore.AppRule rule) {
+        SimpleDateFormat fmt = new SimpleDateFormat("dd/MM/yyyy 'às' HH:mm:ss", Locale.getDefault());
+        String lastSeen = rule.lastSeen > 0L ? fmt.format(new Date(rule.lastSeen)) : "Sem registo";
+        String lastScrutiny = rule.lastScrutinized > 0L ? fmt.format(new Date(rule.lastScrutinized)) : "Ainda não escrutinada";
+        StringBuilder msg = new StringBuilder();
+        msg.append("Package: ").append(rule.packageName);
+        msg.append("\nEstado: ").append(AppTrustStore.modeLabel(rule.mode));
+        msg.append("\n\nÚltima notificação observada: ").append(lastSeen);
+        msg.append("\nÚltima análise: ").append(lastScrutiny);
+        msg.append("\nNotificações escrutinadas: ").append(rule.scrutinyCount);
+        msg.append("\nAlertas gerados: ").append(rule.alertCount);
+        if (!rule.lastVerdict.isEmpty()) msg.append("\nÚltimo resultado: ").append(rule.lastVerdict);
+
+        new AlertDialog.Builder(this)
+                .setTitle(rule.label)
+                .setMessage(msg.toString())
+                .setPositiveButton("Gerir regra", (d, w) -> showAppModeDialog(rule))
+                .setNegativeButton("Fechar", null)
+                .show();
     }
 
     private void showTrustedAppsDialog() {
