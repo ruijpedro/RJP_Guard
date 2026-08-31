@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 
 import org.json.JSONObject;
 
@@ -39,7 +41,7 @@ public final class CommunityReportManager {
                 payload.put("categoria", category == null ? "Outro" : category);
                 payload.put("instalacao", installationId(app));
                 payload.put("pais", countryFor(number));
-                payload.put("appVersao", BuildConfig.VERSION_NAME);
+                payload.put("appVersao", appVersion(app));
                 payload.put("observacoes", "Reporte voluntário RJP Guard");
 
                 JSONObject response = postJson(CommunitySyncManager.ENDPOINT, payload);
@@ -70,6 +72,16 @@ public final class CommunityReportManager {
         return id;
     }
 
+    private static String appVersion(Context context) {
+        try {
+            PackageInfo info = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            String version = info.versionName;
+            return (version == null || version.trim().isEmpty()) ? "3.6.1" : version;
+        } catch (PackageManager.NameNotFoundException e) {
+            return "3.6.1";
+        }
+    }
+
     private static JSONObject postJson(String address, JSONObject payload) throws Exception {
         HttpURLConnection conn = (HttpURLConnection) new URL(address).openConnection();
         conn.setConnectTimeout(12000);
@@ -79,7 +91,7 @@ public final class CommunityReportManager {
         conn.setDoOutput(true);
         conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
         conn.setRequestProperty("Accept", "application/json");
-        conn.setRequestProperty("User-Agent", "RJP-Guard/3.6");
+        conn.setRequestProperty("User-Agent", "RJP-Guard/3.6.1");
         byte[] body = payload.toString().getBytes(StandardCharsets.UTF_8);
         try (OutputStream out = conn.getOutputStream()) { out.write(body); }
         int code = conn.getResponseCode();

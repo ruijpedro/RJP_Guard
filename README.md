@@ -1,3 +1,7 @@
+# RJP Guard V3.6.1
+
+> Correção de compilação da V3.6: removida a dependência direta de `BuildConfig.VERSION_NAME`.
+
 # RJP Guard V3.6
 
 Aplicação Android de proteção contra chamadas, números reportados e mensagens/notificações suspeitas.

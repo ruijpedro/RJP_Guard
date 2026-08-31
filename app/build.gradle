@@ -10,8 +10,8 @@ android {
         applicationId 'pt.rjp.guard'
         minSdk 29
         targetSdk 35
-        versionCode 36
-        versionName '3.6.0'
+        versionCode 37
+        versionName '3.6.1'
     }
 
     buildTypes {
