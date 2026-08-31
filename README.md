@@ -1,8 +1,21 @@
-# RJP Guard — V3.3
+# RJP Guard — V3.4
 
 Aplicação Android para proteção local contra chamadas, números e mensagens suspeitas, orientada para Portugal e com base local multi-fonte.
 
-## Novidade principal da V3.3 — base multi-fonte
+## Novidade principal da V3.4 — Apps Confiáveis
+
+A V3.4 acrescenta gestão local das apps que originam notificações. O RJP Guard usa o **packageName real** da app e permite ao utilizador escolher uma regra por aplicação:
+
+- **ANALISAR NORMALMENTE** — comportamento normal do motor de mensagens;
+- **CONFIÁVEL** — a app é legítima e avisos amarelos pouco conclusivos são suprimidos, mas padrões fortes de possível burla continuam a gerar alerta;
+- **IGNORAR** — o utilizador pede explicitamente para não analisar notificações dessa app.
+
+As apps aparecem no gestor à medida que o `NotificationListenerService` as observa. Ao ligar o serviço, o RJP Guard tenta também registar as apps que já tenham notificações ativas. As regras ficam apenas no próprio telemóvel e não são sincronizadas.
+
+> Marcar WhatsApp, SMS ou outra app de mensagens como confiável **não torna o remetente seguro**. Uma mensagem pode ser fraudulenta mesmo quando é transportada por uma app legítima.
+
+
+## Base multi-fonte mantida da V3.3
 
 A base SQLite deixou de ter apenas uma origem por número. Cada número pode agora manter registos independentes por fonte (`number + source`) e o motor junta a proveniência no alerta.
 
@@ -28,7 +41,7 @@ A base SQLite deixou de ter apenas uma origem por número. Cada número pode ago
 4. **tellows Portugal**
    - integração identificada como futura fonte portuguesa de reputação;
    - requer API/parceria/licença válida;
-   - a V3.3 não faz scraping nem reutiliza dados sem autorização.
+   - a V3.4 não faz scraping nem reutiliza dados sem autorização.
 
 ### Fonte pessoal
 
@@ -61,7 +74,7 @@ Durante uma chamada, não é feita pesquisa online do número: o `CallScreeningS
 
 ## Histórico V3.2 mantido
 
-A V3.3 mantém o Histórico de Alertas identificável:
+A V3.4 mantém o Histórico de Alertas identificável:
 - número completo quando disponibilizado pelo Android;
 - nome/contacto quando reconhecido;
 - chamada ou app de mensagens;
@@ -77,6 +90,7 @@ A V3.3 mantém o Histórico de Alertas identificável:
 - bases externas apenas são descarregadas periodicamente;
 - sem conta;
 - sem sincronização entre telemóveis;
+- regras de apps confiáveis guardadas apenas localmente;
 - sem analytics;
 - sem envio do conteúdo das mensagens para servidores;
 - sem scraping de serviços de reputação.
@@ -102,8 +116,8 @@ A V3.3 mantém o Histórico de Alertas identificável:
 ## Identificação técnica
 
 - Package: `pt.rjp.guard`
-- Version name: `3.3.0`
-- Version code: `33`
+- Version name: `3.4.0`
+- Version code: `34`
 - Min Android: 10 / API 29
 - Target: Android 15 / API 35
 - Java: 17

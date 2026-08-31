@@ -96,7 +96,7 @@ public class MainActivity extends Activity {
         logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         root.addView(logo, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(172)));
 
-        TextView version = infoText("RJP Guard V3.3 • Proteção local com múltiplas fontes nacionais e internacionais");
+        TextView version = infoText("RJP Guard V3.4 • Proteção local + gestão de apps confiáveis");
         version.setGravity(Gravity.CENTER);
         root.addView(version);
 
@@ -111,6 +111,15 @@ public class MainActivity extends Activity {
         Button notifButton = actionButton("💬 ATIVAR ANÁLISE DE MENSAGENS");
         notifButton.setOnClickListener(v -> safeStartActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")));
         root.addView(notifButton);
+
+        root.addView(sectionTitle("APPS CONFIÁVEIS"));
+        root.addView(infoText("O RJP Guard identifica a app pelo packageName real. Podes escolher: analisar normalmente, considerar a app confiável (ignora apenas avisos fracos) ou ignorar completamente as notificações dessa app."));
+        root.addView(infoCard("Apps observadas", String.valueOf(AppTrustStore.observedCount(this))));
+        root.addView(infoCard("Regras personalizadas", String.valueOf(AppTrustStore.configuredCount(this))));
+        Button trustedApps = secondaryButton("⚙ GERIR APPS CONFIÁVEIS");
+        trustedApps.setOnClickListener(v -> showTrustedAppsDialog());
+        root.addView(trustedApps);
+        root.addView(infoText("Importante: uma app legítima como WhatsApp ou SMS pode transportar uma mensagem fraudulenta. No modo CONFIÁVEL, padrões fortes de burla continuam a gerar alerta."));
 
         root.addView(sectionTitle("FONTES DE PROTEÇÃO"));
         SpamDatabase spamDb = SpamDatabase.get(this);
@@ -227,7 +236,7 @@ public class MainActivity extends Activity {
         }
 
         root.addView(sectionTitle("PRIVACIDADE"));
-        root.addView(infoText("Chamadas e mensagens são analisadas no próprio telemóvel. A rede é usada apenas para atualizar fontes públicas configuradas, como a CallShield."));
+        root.addView(infoText("Chamadas e mensagens são analisadas no próprio telemóvel. As regras de apps confiáveis também ficam apenas neste dispositivo. A rede é usada apenas para atualizar fontes públicas configuradas, como a CallShield."));
         root.addView(infoText("A ANACOM classifica numeração; não certifica que uma chamada seja legítima. O caller ID pode ser falsificado (spoofing), por isso confirma pedidos sensíveis por um canal conhecido."));
 
         setContentView(scroll);
@@ -272,6 +281,53 @@ public class MainActivity extends Activity {
 
     private void resultDialog(String title, String message) {
         new AlertDialog.Builder(this).setTitle(title).setMessage(message).setPositiveButton("OK", null).show();
+    }
+
+    private void showTrustedAppsDialog() {
+        List<AppTrustStore.AppRule> apps = AppTrustStore.all(this);
+        if (apps.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Apps confiáveis")
+                    .setMessage(isNotificationAccessEnabled()
+                            ? "Ainda não foram observadas notificações de outras apps. Quando chegar uma notificação, a app de origem aparecerá aqui para configuração."
+                            : "Primeiro ativa o acesso às notificações. Depois, à medida que as apps enviarem notificações, aparecerão aqui para configuração.")
+                    .setPositiveButton("OK", null)
+                    .show();
+            return;
+        }
+
+        String[] labels = new String[apps.size()];
+        for (int i = 0; i < apps.size(); i++) {
+            AppTrustStore.AppRule rule = apps.get(i);
+            labels[i] = rule.label + "\n" + AppTrustStore.modeLabel(rule.mode) + "\n" + rule.packageName;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Gerir apps confiáveis")
+                .setItems(labels, (dialog, which) -> showAppModeDialog(apps.get(which)))
+                .setNegativeButton("Fechar", null)
+                .show();
+    }
+
+    private void showAppModeDialog(AppTrustStore.AppRule rule) {
+        String[] modes = {
+                "🛡️ ANALISAR NORMALMENTE",
+                "🟢 CONFIÁVEL — alertar só risco forte",
+                "⚪ IGNORAR — não analisar notificações"
+        };
+        int checked = AppTrustStore.MODE_TRUSTED.equals(rule.mode) ? 1 : AppTrustStore.MODE_IGNORE.equals(rule.mode) ? 2 : 0;
+        new AlertDialog.Builder(this)
+                .setTitle(rule.label)
+                .setMessage("Identificador: " + rule.packageName + "\n\nA escolha é guardada apenas neste telemóvel.")
+                .setSingleChoiceItems(modes, checked, (dialog, which) -> {
+                    String mode = which == 1 ? AppTrustStore.MODE_TRUSTED : which == 2 ? AppTrustStore.MODE_IGNORE : AppTrustStore.MODE_ANALYZE;
+                    AppTrustStore.setMode(this, rule.packageName, rule.label, mode);
+                    dialog.dismiss();
+                    Toast.makeText(this, rule.label + ": " + AppTrustStore.modeLabel(mode), Toast.LENGTH_LONG).show();
+                    render();
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
     }
 
     private void requestNeededPermissions() {

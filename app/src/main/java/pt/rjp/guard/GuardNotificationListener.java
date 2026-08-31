@@ -15,6 +15,20 @@ public class GuardNotificationListener extends NotificationListenerService {
     private static final Pattern PHONE_PATTERN = Pattern.compile("(?<!\\d)(?:\\+?\\d[\\d .()\\-]{7,}\\d)(?!\\d)");
 
     @Override
+    public void onListenerConnected() {
+        super.onListenerConnected();
+        try {
+            StatusBarNotification[] active = getActiveNotifications();
+            if (active == null) return;
+            for (StatusBarNotification sbn : active) {
+                if (sbn == null || getPackageName().equals(sbn.getPackageName())) continue;
+                String appName = appLabel(sbn.getPackageName());
+                AppTrustStore.observeApp(this, sbn.getPackageName(), appName);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
         if (sbn == null || sbn.getNotification() == null) return;
         if (getPackageName().equals(sbn.getPackageName())) return;
@@ -25,13 +39,20 @@ public class GuardNotificationListener extends NotificationListenerService {
         String big = stringExtra(n, Notification.EXTRA_BIG_TEXT);
         String subText = stringExtra(n, Notification.EXTRA_SUB_TEXT);
 
+        String appName = appLabel(sbn.getPackageName());
+        AppTrustStore.observeApp(this, sbn.getPackageName(), appName);
+        String appMode = AppTrustStore.modeFor(this, sbn.getPackageName());
+        if (AppTrustStore.MODE_IGNORE.equals(appMode)) return;
+
         String combined = (title + " " + text + " " + big + " " + subText).trim();
         if (combined.length() < 8) return;
 
         RiskAnalyzer.Result result = RiskAnalyzer.analyze(combined);
         if (result.level == RiskAnalyzer.Level.SAFE) return;
+        // Uma app marcada como confiável não gera avisos amarelos pouco conclusivos.
+        // Padrões fortes (POSSÍVEL BURLA) continuam a ser sinalizados.
+        if (AppTrustStore.MODE_TRUSTED.equals(appMode) && result.level == RiskAnalyzer.Level.WARNING) return;
 
-        String appName = appLabel(sbn.getPackageName());
         String number = extractNumber(title);
         if (number.isEmpty()) number = extractNumber(text);
         if (number.isEmpty()) number = extractNumber(big);
@@ -52,8 +73,8 @@ public class GuardNotificationListener extends NotificationListenerService {
                 number,
                 appName,
                 level,
-                result.reason,
-                "Análise local RJP Guard",
+                result.reason + (AppTrustStore.MODE_TRUSTED.equals(appMode) ? " • App marcada como confiável; alerta mantido por padrão forte." : ""),
+                "Análise local RJP Guard • " + AppTrustStore.modeLabel(appMode),
                 "Alerta apresentado",
                 snippet(text.isEmpty() ? big : text)
         ));
