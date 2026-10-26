@@ -57,7 +57,7 @@ public final class SpamSyncManager {
 
     private static void download(File target) throws Exception {
         HttpURLConnection conn=(HttpURLConnection)new URL(SOURCE_URL).openConnection();
-        conn.setConnectTimeout(12000); conn.setReadTimeout(30000); conn.setRequestProperty("User-Agent","RJP-Guard/3.6"); conn.setInstanceFollowRedirects(true);
+        conn.setConnectTimeout(12000); conn.setReadTimeout(30000); conn.setRequestProperty("User-Agent","RJP-Guard/4.0"); conn.setInstanceFollowRedirects(true);
         int code=conn.getResponseCode(); if(code<200||code>=300) throw new IllegalStateException("HTTP "+code);
         long declared=conn.getContentLengthLong(); if(declared>MAX_BYTES) throw new IllegalStateException("Feed demasiado grande");
         try(InputStream in=new BufferedInputStream(conn.getInputStream()); FileOutputStream out=new FileOutputStream(target)){

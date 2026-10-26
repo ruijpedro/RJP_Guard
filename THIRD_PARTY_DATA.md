@@ -20,3 +20,6 @@ Uso: CSV diário público de chamadas indesejadas/robocalls reportadas por consu
 API/parcerias: https://www.tellows.com/s/about-en/tellows-api-partnership-program
 
 Estado: integração não ativa. Requer API/licença/parceria válida. O RJP Guard não faz scraping.
+
+## V4.0 — CallShield Trends
+O RJP Guard passa a consumir também os feeds públicos `hot_numbers.json`, `hot_ranges.json` e `spam_domains.json` do projeto CallShield. Os dados são descarregados por HTTPS e guardados localmente. Uma correspondência de gama é tratada de forma conservadora (ATENÇÃO), pois um prefixo pode incluir números legítimos.

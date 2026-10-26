@@ -76,9 +76,9 @@ public final class CommunityReportManager {
         try {
             PackageInfo info = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
             String version = info.versionName;
-            return (version == null || version.trim().isEmpty()) ? "3.6.1" : version;
+            return (version == null || version.trim().isEmpty()) ? "3.9.0" : version;
         } catch (PackageManager.NameNotFoundException e) {
-            return "3.6.1";
+            return "3.9.0";
         }
     }
 
@@ -91,7 +91,7 @@ public final class CommunityReportManager {
         conn.setDoOutput(true);
         conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
         conn.setRequestProperty("Accept", "application/json");
-        conn.setRequestProperty("User-Agent", "RJP-Guard/3.6.1");
+        conn.setRequestProperty("User-Agent", "RJP-Guard/3.7");
         byte[] body = payload.toString().getBytes(StandardCharsets.UTF_8);
         try (OutputStream out = conn.getOutputStream()) { out.write(body); }
         int code = conn.getResponseCode();

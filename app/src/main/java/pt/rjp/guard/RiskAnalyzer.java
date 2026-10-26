@@ -1,5 +1,7 @@
 package pt.rjp.guard;
 
+import android.content.Context;
+
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +17,9 @@ public final class RiskAnalyzer {
 
     private RiskAnalyzer() {}
 
-    public static Result analyze(String original) {
+    public static Result analyze(String original) { return analyze(null, original); }
+
+    public static Result analyze(Context context, String original) {
         if (original == null || original.trim().isEmpty()) return new Result(Level.SAFE,"Sem conteúdo para analisar.");
         String text=normalize(original); int signals=0; List<String> reasons=new ArrayList<>();
 
@@ -28,6 +32,10 @@ public final class RiskAnalyzer {
         if (SHORTENER.matcher(text).find()) { signals+=2; reasons.add("usa ligação encurtada que oculta o destino"); }
         if (containsAny(text,"premio","ganhou","sorteio","oferta exclusiva","investimento garantido","lucro garantido","bitcoin","criptomoeda","crypto")) { signals+=2; reasons.add("promessa financeira ou prémio inesperado"); }
         if (containsAny(text,"instale esta app","instalar aplicacao","anydesk","teamviewer","acesso remoto","partilhar ecra")) { signals+=3; reasons.add("pedido de instalação ou acesso remoto ao dispositivo"); }
+        if (context != null) {
+            String badDomain = SpamDatabase.get(context).findSpamDomain(original);
+            if (!badDomain.isEmpty()) { signals += 4; reasons.add("domínio reportado pela CallShield: " + badDomain); }
+        }
 
         Level level=signals>=4?Level.SCAM:signals>=2?Level.WARNING:Level.SAFE;
         String reason=reasons.isEmpty()?"Não foram encontrados padrões simples de burla.":"Detetado: "+joinReasons(reasons)+".";

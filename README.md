@@ -1,52 +1,75 @@
-# RJP Guard V3.6.1
+# RJP Guard V4.0 — Data Intelligence Update
 
-> Correção de compilação da V3.6: removida a dependência direta de `BuildConfig.VERSION_NAME`.
+Esta versão reforça as fontes gratuitas do RJP Guard sem depender do Sync.ME.
 
-# RJP Guard V3.6
+## Novidades V4.0
+- Mantém CallShield, FTC, ANACOM e RJP Guard Community.
+- Integra feeds públicos `hot_numbers.json`, `hot_ranges.json` e `spam_domains.json` da CallShield.
+- Números em campanha recente podem gerar `POSSÍVEL BURLA`.
+- Gamas/prefixos em campanha geram `ATENÇÃO`, sem bloqueio automático isolado.
+- Domínios reportados na CallShield reforçam a análise local de SMS/WhatsApp/links.
+- Atualização de tendências a cada 30 minutos quando necessário.
+- Tudo é guardado localmente em SQLite antes de ser usado na filtragem.
+- Mantém reconhecimento de Google Play e apps confiáveis da V3.9.
+
+# RJP Guard V3.9 — Trusted Update Recognition
 
 Aplicação Android de proteção contra chamadas, números reportados e mensagens/notificações suspeitas.
 
-## Fontes
+## Novidades V3.9
 
-- **ANACOM** — validação/classificação da numeração portuguesa; não é blacklist.
-- **CallShield** — fonte internacional de reputação/spam.
-- **FTC Do Not Call** — relatos oficiais de chamadas indesejadas/robocalls; não equivalem, isoladamente, a fraude confirmada.
-- **RJP Guard Community** — base comunitária própria alojada numa Google Sheet através de Google Apps Script.
-- **tellows Portugal** — arquitetura preparada, desativada enquanto não existir API/licença configurada.
+### Google Play e atualizações reconhecidas
+O RJP Guard deixa de tratar as notificações oficiais de atualização como simples conteúdo ignorado. Agora tenta classificá-las explicitamente como:
 
-## Endpoint comunitário configurado
+- **🟢 ATUALIZAÇÃO SEGURA** — Google Play / instalador oficial Android;
+- **🟢 GOOGLE PLAY / PLAY PROTECT** — manutenção/segurança oficial;
+- **🟢 ATUALIZAÇÃO DE APP CONFIÁVEL** — atualização operacional de uma app marcada como confiável;
+- **🟢 SOLICITAÇÃO SEGURA** — estado operacional benigno de uma app confiável.
+
+A classificação usa sempre o **packageName real**. O nome visível da app, sozinho, nunca é suficiente para a tornar confiável.
+
+### Apps confiáveis continuam protegidas
+Os quatro modos mantêm-se:
+
+- **OBSERVAR / ANALISAR**;
+- **SISTEMA / CONFIÁVEL**;
+- **CONFIÁVEL**;
+- **IGNORAR**.
+
+Uma app marcada **CONFIÁVEL** pode ter atualizações, instalação, sincronização, backup ou operação concluída reconhecidos como seguros. No entanto, notificações de apps de mensagens continuam a ser analisadas porque o conteúdo vem de terceiros.
+
+### Proteção contra falsa confiança
+A exceção de “solicitação segura” não é usada quando o texto contém sinais sensíveis como ligações externas, pedido de códigos/PIN, MB WAY, IBAN, envio de dinheiro ou acesso remoto.
+
+### Apps observadas / escrutinadas
+Passa a mostrar por app:
+
+- notificações escrutinadas;
+- alertas gerados;
+- solicitações seguras reconhecidas;
+- atualizações/instalações seguras;
+- última classificação e último resultado.
+
+## Funcionalidades mantidas
+
+- filtragem de chamadas Android;
+- CallShield;
+- FTC Do Not Call;
+- validação de numeração ANACOM;
+- RJP Guard Community via Google Sheets + Apps Script;
+- números seguros e bloqueados localmente;
+- histórico identificável de chamadas/mensagens;
+- “É seguro” para falsos positivos;
+- assinatura Android permanente preparada via GitHub Secrets.
+
+## Endpoint comunitário
 
 `https://script.google.com/macros/s/AKfycbzKB1z-XRZyA3gl2Os1VCvAFpob1y92aM9SvsLjq2BfhA51aiVxgtkw9tKVLFCjDWmm4Q/exec`
 
-A aplicação descarrega a base comunitária para SQLite e consulta-a localmente durante chamadas. Não depende de uma pesquisa online durante os segundos críticos do CallScreeningService.
-
-## Reportes
-
-Ao reportar/bloquear um número:
-
-1. O número fica imediatamente bloqueado localmente.
-2. É escolhida uma categoria.
-3. O utilizador decide se quer partilhar o reporte de forma anónima com a RJP Guard Community.
-
-São enviados apenas número, categoria, país, versão da app e um UUID aleatório da instalação.
-
-## Apps confiáveis / observadas
-
-O RJP Guard guarda o `packageName` real das apps que geram notificações. O utilizador pode escolher:
-
-- analisar normalmente;
-- confiar e suprimir apenas avisos fracos;
-- ignorar completamente a app.
-
-O cartão **Apps observadas** abre a lista das apps já escrutinadas, com data da última análise e contadores.
-
-## Atualização do Apps Script
-
-Antes de usar o envio comunitário, abre `server/ATUALIZAR_APPS_SCRIPT.txt` e substitui o Código.gs pela versão `server/Code.gs`, depois cria uma nova versão da implementação Web App. O URL `/exec` pode manter-se igual.
-
 ## Build
 
-GitHub Actions: `Actions > Build RJP Guard APK`.
-O workflow gera `app-debug.apk`.
+**Actions > Build RJP Guard APK**
 
-> Nota: para garantir atualização Android por cima de versões anteriores sem perder dados locais, as APKs instaladas precisam de ser assinadas com a mesma chave. Builds debug de runners diferentes podem não manter a mesma assinatura; para distribuição continuada deve ser configurada uma chave de release estável nos GitHub Secrets.
+Sem secrets de assinatura: gera `app-debug.apk`.
+
+Com os secrets descritos em `SIGNING_SETUP.md`: gera também `app-release.apk` assinado permanentemente.

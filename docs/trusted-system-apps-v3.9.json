@@ -1,0 +1,20 @@
+{
+  "version": "3.9.0",
+  "policy": "package-name-plus-notification-classification-user-overridable",
+  "system_trusted_packages": [
+    {"package":"com.android.vending","label":"Google Play Store","recognizes_updates":true},
+    {"package":"com.google.android.gms","label":"Google Play services","recognizes_updates":true},
+    {"package":"com.google.android.gsf","label":"Google Services Framework","recognizes_updates":false},
+    {"package":"com.android.systemui","label":"Android System UI","recognizes_updates":true},
+    {"package":"com.android.permissioncontroller","label":"Android Permission Controller","recognizes_updates":false},
+    {"package":"com.google.android.permissioncontroller","label":"Google Permission Controller","recognizes_updates":false},
+    {"package":"com.android.packageinstaller","label":"Android Package Installer","recognizes_updates":true},
+    {"package":"com.google.android.packageinstaller","label":"Google Package Installer","recognizes_updates":true},
+    {"package":"com.google.android.packageinstaller.permission.ui","label":"Google Package Installer Permission UI","recognizes_updates":true}
+  ],
+  "trusted_app_rules": {
+    "message_apps_keep_content_analysis": true,
+    "operational_updates_can_be_safe": true,
+    "high_risk_payload_bypasses_safe_operation": true
+  }
+}

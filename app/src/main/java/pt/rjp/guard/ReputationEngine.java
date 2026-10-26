@@ -16,11 +16,7 @@ public final class ReputationEngine {
         public final PortugalNumbering.Info numbering;
 
         Result(Verdict verdict, String title, String detail, String source, PortugalNumbering.Info numbering) {
-            this.verdict = verdict;
-            this.title = title;
-            this.detail = detail;
-            this.source = source;
-            this.numbering = numbering;
+            this.verdict = verdict; this.title = title; this.detail = detail; this.source = source; this.numbering = numbering;
         }
     }
 
@@ -30,21 +26,20 @@ public final class ReputationEngine {
         PortugalNumbering.Info pnn = PortugalNumbering.classify(number);
 
         if (GuardStore.isSafe(c, number) || isContact) {
-            return new Result(Verdict.SAFE, "🟢 SEGURO",
-                    "Número reconhecido como contacto/lista segura.", "RJP Guard — lista segura", pnn);
+            return new Result(Verdict.SAFE, "🟢 SEGURO", "Número reconhecido como contacto/lista segura.", "RJP Guard — lista segura", pnn);
         }
 
         String localType = GuardStore.localReportType(c, number);
         if (GuardStore.isBlocked(c, number)) {
             String extra = localType.isEmpty() ? "" : " Categoria: " + localType + ".";
-            return new Result(Verdict.BLOCKED, "🔴 BLOQUEADO",
-                    "Número bloqueado pelo utilizador." + extra, "RJP Guard Local", pnn);
+            return new Result(Verdict.BLOCKED, "🔴 BLOQUEADO", "Número bloqueado pelo utilizador." + extra, "RJP Guard Local", pnn);
         }
 
         SpamDatabase db = SpamDatabase.get(c);
         List<SpamDatabase.Hit> hits = db.hits(number);
         if (!hits.isEmpty()) {
             boolean hasCallShield = false;
+            boolean hasHot = false;
             boolean hasFtc = false;
             boolean hasCommunity = false;
             boolean communityConfirmed = false;
@@ -57,6 +52,7 @@ public final class ReputationEngine {
 
             for (SpamDatabase.Hit hit : hits) {
                 if ("CallShield".equals(hit.source)) hasCallShield = true;
+                if (CallShieldTrendSyncManager.HOT_NUMBER_SOURCE.equals(hit.source)) { hasCallShield = true; hasHot = true; }
                 if ("FTC DNC".equals(hit.source)) hasFtc = true;
                 if (CommunitySyncManager.SOURCE_NAME.equals(hit.source)) {
                     hasCommunity = true;
@@ -66,10 +62,7 @@ public final class ReputationEngine {
                     if (d.contains("confirmado")) communityConfirmed = true;
                     if (d.contains("reportado") || hit.reports >= 2) communityReported = true;
                 }
-                if (sources.indexOf(hit.source) < 0) {
-                    if (sources.length() > 0) sources.append(" + ");
-                    sources.append(hit.source);
-                }
+                if (sources.indexOf(hit.source) < 0) { if (sources.length() > 0) sources.append(" + "); sources.append(hit.source); }
                 if (bestType.isEmpty() && hit.type != null) bestType = hit.type;
                 if (bestDescription.isEmpty() && hit.description != null && !hit.description.isEmpty()) bestDescription = hit.description;
             }
@@ -78,7 +71,11 @@ public final class ReputationEngine {
             String title;
             StringBuilder detail = new StringBuilder();
 
-            if (hasCallShield) {
+            if (hasHot) {
+                verdict = Verdict.SCAM;
+                title = "🔴 CAMPANHA DE SPAM ATIVA";
+                detail.append("Número presente na lista recente de tendências da CallShield");
+            } else if (hasCallShield) {
                 verdict = Verdict.SCAM;
                 title = "🔴 POSSÍVEL BURLA";
                 detail.append("Número presente na base CallShield");
@@ -108,20 +105,27 @@ public final class ReputationEngine {
             return new Result(verdict, title, detail.toString(), sources.toString(), pnn);
         }
 
-        if (pnn.level == PortugalNumbering.Level.ATTENTION) {
-            return new Result(Verdict.ATTENTION, "🟡 ATENÇÃO", pnn.detail,
-                    PortugalNumbering.SOURCE, pnn);
+        List<SpamDatabase.RangeHit> ranges = db.rangeHits(number);
+        if (!ranges.isEmpty()) {
+            SpamDatabase.RangeHit hit = ranges.get(0);
+            String prefix = hit.prefix;
+            String detail = "O número pertence à gama " + prefix + "… associada a uma campanha recente na CallShield. " +
+                    "Uma gama pode incluir números legítimos, por isso o RJP Guard avisa mas não a trata isoladamente como burla confirmada.";
+            return new Result(Verdict.ATTENTION, "🟡 GAMA EM CAMPANHA SUSPEITA", detail, hit.source, pnn);
         }
 
-        String checkedSources = PortugalNumbering.SOURCE + " + CallShield + FTC DNC + RJP Guard Community";
+        if (pnn.level == PortugalNumbering.Level.ATTENTION) {
+            return new Result(Verdict.ATTENTION, "🟡 ATENÇÃO", pnn.detail, PortugalNumbering.SOURCE, pnn);
+        }
+
+        String checkedSources = PortugalNumbering.SOURCE + " + CallShield + CallShield Trends + FTC DNC + RJP Guard Community";
         if (pnn.portuguese && pnn.level == PortugalNumbering.Level.NORMAL) {
             return new Result(Verdict.ATTENTION, "🟡 NÚMERO SEM DENÚNCIAS CONHECIDAS",
-                    "Numeração portuguesa reconhecida: " + pnn.category + ". Não encontrado nas bases locais atuais.",
-                    checkedSources, pnn);
+                    "Numeração portuguesa reconhecida: " + pnn.category + ". Não encontrado nas bases locais atuais.", checkedSources, pnn);
         }
 
         return new Result(Verdict.ATTENTION, "🟡 NÚMERO DESCONHECIDO",
                 pnn.detail + " Não encontrado nas bases locais. Isto não garante que seja seguro.",
-                pnn.portuguese ? checkedSources : "CallShield + FTC DNC + RJP Guard Community", pnn);
+                pnn.portuguese ? checkedSources : "CallShield + CallShield Trends + FTC DNC + RJP Guard Community", pnn);
     }
 }

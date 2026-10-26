@@ -96,7 +96,7 @@ public class MainActivity extends Activity {
         logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         root.addView(logo, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(172)));
 
-        TextView version = infoText("RJP Guard V3.6 • Base Comunitária");
+        TextView version = infoText("RJP Guard V4.0 • Data Intelligence Update");
         version.setGravity(Gravity.CENTER);
         root.addView(version);
 
@@ -112,8 +112,25 @@ public class MainActivity extends Activity {
         notifButton.setOnClickListener(v -> safeStartActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")));
         root.addView(notifButton);
 
-        root.addView(sectionTitle("APPS CONFIÁVEIS"));
-        root.addView(infoText("O RJP Guard identifica a app pelo packageName real. Podes escolher: analisar normalmente, considerar a app confiável (ignora apenas avisos fracos) ou ignorar completamente as notificações dessa app."));
+        // V4.0 — Centro de Proteção e inteligência de dados.
+        SpamDatabase protectionDb = SpamDatabase.get(this);
+        boolean callsOk = isCallScreeningActive();
+        boolean notificationsOk = isNotificationAccessEnabled();
+        boolean callShieldOk = protectionDb.countBySource("CallShield") > 0;
+        boolean trendsOk = !protectionDb.meta("callshield_trends_last_sync", "").isEmpty();
+        boolean communityOk = protectionDb.countBySource(CommunitySyncManager.SOURCE_NAME) > 0;
+        boolean coreOk = callsOk && notificationsOk && callShieldOk;
+        root.addView(sectionTitle("CENTRO DE PROTEÇÃO"));
+        root.addView(statusCard("Estado geral", coreOk ? "🟢 PROTEÇÃO COMPLETA" : "🟡 PROTEÇÃO INCOMPLETA", coreOk));
+        root.addView(statusCard("Filtragem de chamadas", callsOk ? "🟢 ATIVA" : "🟡 INATIVA", callsOk));
+        root.addView(statusCard("Análise de notificações", notificationsOk ? "🟢 ATIVA" : "🟡 INATIVA", notificationsOk));
+        root.addView(statusCard("CallShield local", callShieldOk ? "🟢 CARREGADA" : "🟡 ATUALIZAR", callShieldOk));
+        root.addView(statusCard("CallShield tendências", trendsOk ? "🟢 ATUALIZADAS" : "🟡 ATUALIZAR", trendsOk));
+        root.addView(statusCard("RJP Guard Community", communityOk ? "🟢 CARREGADA" : "🟡 SEM DADOS", communityOk));
+        root.addView(infoText("Decisões locais: " + GuardStore.safeCount(this) + " seguros • " + GuardStore.blockedCount(this) + " bloqueados/reportados. O Centro de Proteção não envia dados; apenas resume o estado deste telemóvel."));
+
+        root.addView(sectionTitle("APPS CONFIÁVEIS / OBSERVADAS"));
+        root.addView(infoText("O RJP Guard identifica cada app pelo packageName real. A V4.0 mantém o reconhecimento de atualizações/instalações do Google Play e solicitações operacionais de apps que já marcaste como confiáveis, sem confundir essas notificações com ameaças."));
         View observedAppsCard = infoCard("Apps observadas • tocar para abrir", String.valueOf(AppTrustStore.observedCount(this)));
         observedAppsCard.setClickable(true);
         observedAppsCard.setFocusable(true);
@@ -121,16 +138,23 @@ public class MainActivity extends Activity {
         root.addView(observedAppsCard);
         root.addView(infoCard("Apps já escrutinadas", String.valueOf(AppTrustStore.scrutinizedAppCount(this))));
         root.addView(infoCard("Notificações escrutinadas", String.valueOf(AppTrustStore.totalScrutinyCount(this))));
+        root.addView(infoCard("Solicitações reconhecidas como seguras", String.valueOf(AppTrustStore.totalSafeEventCount(this))));
+        root.addView(infoCard("Atualizações / instalações seguras", String.valueOf(AppTrustStore.totalUpdateEventCount(this))));
+        root.addView(infoCard("Sistema / confiáveis", String.valueOf(AppTrustStore.systemTrustedCount(this))));
         root.addView(infoCard("Regras personalizadas", String.valueOf(AppTrustStore.configuredCount(this))));
         Button trustedApps = secondaryButton("⚙ GERIR APPS CONFIÁVEIS");
         trustedApps.setOnClickListener(v -> showTrustedAppsDialog());
         root.addView(trustedApps);
-        root.addView(infoText("Importante: uma app legítima como WhatsApp ou SMS pode transportar uma mensagem fraudulenta. No modo CONFIÁVEL, padrões fortes de burla continuam a gerar alerta."));
+        root.addView(infoText("Google Play Store, Google Play services e instaladores oficiais entram automaticamente como SISTEMA/CONFIÁVEL. A V4.0 distingue uma atualização/instalação segura de uma notificação normal e regista essa classificação. Numa app que marques como CONFIÁVEL, atualizações e operações benignas podem ser reconhecidas como seguras; WhatsApp/SMS/Telegram continuam a analisar o conteúdo porque uma app legítima pode transportar mensagens de terceiros."));
 
         root.addView(sectionTitle("FONTES DE PROTEÇÃO"));
         SpamDatabase spamDb = SpamDatabase.get(this);
         long dbCount = spamDb.count();
         long callShieldCount = spamDb.countBySource("CallShield");
+        long hotCount = spamDb.countBySource(CallShieldTrendSyncManager.HOT_NUMBER_SOURCE);
+        long hotRangeCount = spamDb.countRangesBySource(CallShieldTrendSyncManager.HOT_RANGE_SOURCE);
+        long spamDomainCount = spamDb.countDomainsBySource(CallShieldTrendSyncManager.DOMAIN_SOURCE);
+        String trendsLast = spamDb.meta("callshield_trends_last_sync", "Ainda não atualizadas");
         long ftcCount = spamDb.countBySource("FTC DNC");
         long communityCount = spamDb.countBySource(CommunitySyncManager.SOURCE_NAME);
         String communityLast = spamDb.meta("community_last_sync", "Ainda não atualizada");
@@ -147,6 +171,8 @@ public class MainActivity extends Activity {
 
         root.addView(sourceCard("🛡️ CallShield", "Base internacional agregada", callShieldCount + " números • " + callShieldLast, callShieldCount > 0));
         if (!callShieldVersion.isEmpty()) root.addView(infoText("Versão CallShield: " + callShieldVersion + ". A CallShield agrega várias fontes públicas/comunitárias e continua a ser a principal fonte de reputação do RJP Guard."));
+        root.addView(sourceCard("🔥 CallShield Trends", "Campanhas, gamas e domínios recentes", hotCount + " números • " + hotRangeCount + " gamas • " + spamDomainCount + " domínios • " + trendsLast, trendsOk));
+        root.addView(infoText("A V4.0 consulta os feeds públicos de tendências da CallShield. Um número quente reforça o alerta; uma gama suspeita gera apenas ATENÇÃO para reduzir falsos positivos; domínios reportados reforçam a análise de mensagens e links."));
 
         root.addView(sourceCard("🇺🇸 FTC Do Not Call", "Base oficial de chamadas indesejadas/robocalls", ftcCount + " números • " + ftcLast + (ftcDate.isEmpty()?"":" • ficheiro "+ftcDate), ftcCount > 0));
         root.addView(infoText("A FTC publica relatos de consumidores. Estes registos são úteis como sinal adicional, mas não são verificados pela FTC e não significam automaticamente burla."));
@@ -297,7 +323,7 @@ public class MainActivity extends Activity {
 
     private void analyzeMessage(String text) {
         if (text == null || text.trim().isEmpty()) { Toast.makeText(this, "Cola ou escreve uma mensagem.", Toast.LENGTH_SHORT).show(); return; }
-        RiskAnalyzer.Result result = RiskAnalyzer.analyze(text);
+        RiskAnalyzer.Result result = RiskAnalyzer.analyze(this, text);
         String title = result.level == RiskAnalyzer.Level.SCAM ? "🔴 POSSÍVEL BURLA" : result.level == RiskAnalyzer.Level.WARNING ? "🟡 ATENÇÃO" : "🟢 SEGURO";
         String guidance = result.level == RiskAnalyzer.Level.SCAM
                 ? "\n\nNÃO RESPONDA • NÃO ENVIE DINHEIRO • NÃO PARTILHE CÓDIGOS"
@@ -331,8 +357,12 @@ public class MainActivity extends Activity {
                 String when = rule.lastScrutinized > 0L ? fmt.format(new Date(rule.lastScrutinized)) : "sem data";
                 scrutiny = "✅ Escrutinada " + rule.scrutinyCount + (rule.scrutinyCount == 1 ? " vez" : " vezes")
                         + " • " + rule.alertCount + (rule.alertCount == 1 ? " alerta" : " alertas")
+                        + " • " + rule.safeEventCount + " seguras"
+                        + (rule.updateEventCount > 0 ? " • " + rule.updateEventCount + " atualizações" : "")
                         + "\nÚltima análise: " + when
                         + (rule.lastVerdict.isEmpty() ? "" : " • " + rule.lastVerdict);
+            } else if (AppTrustStore.MODE_SYSTEM_TRUSTED.equals(rule.mode)) {
+                scrutiny = "🟢 Observada • reconhecida como SISTEMA/CONFIÁVEL";
             } else if (AppTrustStore.MODE_IGNORE.equals(rule.mode)) {
                 scrutiny = "⚪ Observada, mas não escrutinada • app configurada para IGNORAR";
             } else {
@@ -355,10 +385,14 @@ public class MainActivity extends Activity {
         StringBuilder msg = new StringBuilder();
         msg.append("Package: ").append(rule.packageName);
         msg.append("\nEstado: ").append(AppTrustStore.modeLabel(rule.mode));
+        msg.append("\nRecomendação: ").append(AppTrustStore.recommendationFor(rule.packageName));
         msg.append("\n\nÚltima notificação observada: ").append(lastSeen);
         msg.append("\nÚltima análise: ").append(lastScrutiny);
         msg.append("\nNotificações escrutinadas: ").append(rule.scrutinyCount);
+        msg.append("\nSolicitações seguras reconhecidas: ").append(rule.safeEventCount);
+        msg.append("\nAtualizações/instalações seguras: ").append(rule.updateEventCount);
         msg.append("\nAlertas gerados: ").append(rule.alertCount);
+        if (!rule.lastClassification.isEmpty()) msg.append("\nÚltima classificação: ").append(rule.lastClassification);
         if (!rule.lastVerdict.isEmpty()) msg.append("\nÚltimo resultado: ").append(rule.lastVerdict);
 
         new AlertDialog.Builder(this)
@@ -397,19 +431,34 @@ public class MainActivity extends Activity {
 
     private void showAppModeDialog(AppTrustStore.AppRule rule) {
         String[] modes = {
-                "🛡️ ANALISAR NORMALMENTE",
-                "🟢 CONFIÁVEL — alertar só risco forte",
+                "👁️ OBSERVAR / ANALISAR normalmente",
+                "🟢 SISTEMA / CONFIÁVEL — não alertar notificações normais",
+                "🛡️ CONFIÁVEL — alertar só risco forte",
                 "⚪ IGNORAR — não analisar notificações"
         };
-        int checked = AppTrustStore.MODE_TRUSTED.equals(rule.mode) ? 1 : AppTrustStore.MODE_IGNORE.equals(rule.mode) ? 2 : 0;
+        int checked = AppTrustStore.MODE_SYSTEM_TRUSTED.equals(rule.mode) ? 1
+                : AppTrustStore.MODE_TRUSTED.equals(rule.mode) ? 2
+                : AppTrustStore.MODE_IGNORE.equals(rule.mode) ? 3 : 0;
         new AlertDialog.Builder(this)
                 .setTitle(rule.label)
-                .setMessage("Identificador: " + rule.packageName + "\n\nA escolha é guardada apenas neste telemóvel.")
+                .setMessage("Identificador: " + rule.packageName
+                        + "\n\nRecomendação RJP Guard: " + AppTrustStore.recommendationFor(rule.packageName)
+                        + "\n\nSISTEMA/CONFIÁVEL é indicado para Google Play e componentes oficiais. A V4.0 reconhece atualizações/instalações e não as transforma em ameaças. Em CONFIÁVEL, operações benignas também podem ser reconhecidas, mas padrões fortes continuam protegidos. Para WhatsApp/SMS/Telegram mantém-se a análise do conteúdo."
+                        + "\n\nA escolha é guardada apenas neste telemóvel.")
                 .setSingleChoiceItems(modes, checked, (dialog, which) -> {
-                    String mode = which == 1 ? AppTrustStore.MODE_TRUSTED : which == 2 ? AppTrustStore.MODE_IGNORE : AppTrustStore.MODE_ANALYZE;
+                    String mode;
+                    if (which == 1) mode = AppTrustStore.MODE_SYSTEM_TRUSTED;
+                    else if (which == 2) mode = AppTrustStore.MODE_TRUSTED;
+                    else if (which == 3) mode = AppTrustStore.MODE_IGNORE;
+                    else mode = AppTrustStore.MODE_ANALYZE;
                     AppTrustStore.setMode(this, rule.packageName, rule.label, mode);
                     dialog.dismiss();
                     Toast.makeText(this, rule.label + ": " + AppTrustStore.modeLabel(mode), Toast.LENGTH_LONG).show();
+                    render();
+                })
+                .setNeutralButton("Repor automático", (d, w) -> {
+                    AppTrustStore.resetToDefault(this, rule.packageName, rule.label);
+                    Toast.makeText(this, "Regra automática reposta para " + rule.label, Toast.LENGTH_SHORT).show();
                     render();
                 })
                 .setNegativeButton("Cancelar", null)
@@ -548,9 +597,13 @@ public class MainActivity extends Activity {
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this)
                 .setTitle(alert.level)
-                .setMessage(msg.toString())
-                .setPositiveButton("Fechar", null);
+                .setMessage(msg.toString());
         if (!alert.number.isEmpty()) {
+            builder.setPositiveButton("✓ É SEGURO", (d, w) -> {
+                GuardStore.addSafe(this, alert.number);
+                Toast.makeText(this, "Número marcado como seguro. Alertas futuros deste número serão ignorados.", Toast.LENGTH_LONG).show();
+                render();
+            });
             builder.setNeutralButton("Copiar número", (d, w) -> {
                 ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                 if (clipboard != null) {
@@ -558,6 +611,9 @@ public class MainActivity extends Activity {
                     Toast.makeText(this, "Número copiado", Toast.LENGTH_SHORT).show();
                 }
             });
+            builder.setNegativeButton("Fechar", null);
+        } else {
+            builder.setPositiveButton("Fechar", null);
         }
         builder.show();
     }

@@ -79,7 +79,7 @@ public final class FtcDncSyncManager {
     private static boolean tryDownload(String url, File target) throws Exception {
         HttpURLConnection conn=(HttpURLConnection)new URL(url).openConnection();
         conn.setConnectTimeout(10000); conn.setReadTimeout(25000); conn.setInstanceFollowRedirects(true);
-        conn.setRequestProperty("User-Agent","RJP-Guard/3.6");
+        conn.setRequestProperty("User-Agent","RJP-Guard/3.7");
         int code=conn.getResponseCode();
         if(code==404){ conn.disconnect(); return false; }
         if(code<200||code>=300){ conn.disconnect(); return false; }

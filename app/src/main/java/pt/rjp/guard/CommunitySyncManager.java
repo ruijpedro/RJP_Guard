@@ -63,7 +63,7 @@ public final class CommunitySyncManager {
         conn.setConnectTimeout(12000);
         conn.setReadTimeout(25000);
         conn.setInstanceFollowRedirects(true);
-        conn.setRequestProperty("User-Agent", "RJP-Guard/3.6");
+        conn.setRequestProperty("User-Agent", "RJP-Guard/3.7");
         conn.setRequestProperty("Accept", "application/json");
         int code = conn.getResponseCode();
         if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);

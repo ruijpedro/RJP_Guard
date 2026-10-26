@@ -1,0 +1,12 @@
+{
+  "version": "4.0.0",
+  "sources": [
+    {"name":"CallShield","role":"spam reputation","url":"https://raw.githubusercontent.com/SysAdminDoc/CallShield/master/data/spam_numbers.json","refresh":"7 days"},
+    {"name":"CallShield Hot Numbers","role":"recent campaigns","url":"https://raw.githubusercontent.com/SysAdminDoc/CallShield/master/data/hot_numbers.json","refresh":"30 minutes"},
+    {"name":"CallShield Hot Ranges","role":"recent campaign prefixes","url":"https://raw.githubusercontent.com/SysAdminDoc/CallShield/master/data/hot_ranges.json","refresh":"30 minutes"},
+    {"name":"CallShield Spam Domains","role":"message/link intelligence","url":"https://raw.githubusercontent.com/SysAdminDoc/CallShield/master/data/spam_domains.json","refresh":"30 minutes"},
+    {"name":"FTC Do Not Call","role":"consumer complaints","refresh":"daily when available"},
+    {"name":"ANACOM","role":"Portuguese numbering validation"},
+    {"name":"RJP Guard Community","role":"anonymous community reputation"}
+  ]
+}

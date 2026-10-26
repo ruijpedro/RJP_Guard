@@ -45,9 +45,55 @@ public class GuardNotificationListener extends NotificationListenerService {
         if (AppTrustStore.MODE_IGNORE.equals(appMode)) return;
 
         String combined = (title + " " + text + " " + big + " " + subText).trim();
+
+        // V3.9: reconhecer explicitamente atualizações/instalações do Google Play
+        // e eventos operacionais de apps que o utilizador marcou como confiáveis.
+        // A decisão usa o packageName real e a categoria da notificação; apps de
+        // mensagens não beneficiam desta exceção porque podem transportar fraude.
+        TrustedNotificationClassifier.Result trustedEvent = TrustedNotificationClassifier.classify(
+                sbn.getPackageName(), appMode, n, combined);
+        if (trustedEvent.safe) {
+            AppTrustStore.recordSafeEvent(
+                    this,
+                    sbn.getPackageName(),
+                    appName,
+                    trustedEvent.verdict,
+                    trustedEvent.reason,
+                    trustedEvent.update
+            );
+            return;
+        }
+
+        // Componentes SISTEMA/CONFIÁVEL continuam sem gerar alertas para
+        // notificações normais. Quando a V3.9 reconhece uma atualização, fica
+        // registada acima com a classificação específica ATUALIZAÇÃO SEGURA.
+        if (AppTrustStore.MODE_SYSTEM_TRUSTED.equals(appMode)) {
+            if (!combined.isEmpty()) {
+                AppTrustStore.recordSafeEvent(
+                        this,
+                        sbn.getPackageName(),
+                        appName,
+                        "🟢 SISTEMA/CONFIÁVEL",
+                        "Notificação normal de componente de sistema/confiável.",
+                        false
+                );
+            }
+            return;
+        }
+
         if (combined.length() < 8) return;
 
-        RiskAnalyzer.Result result = RiskAnalyzer.analyze(combined);
+        // V3.9 — respeitar a decisão local “É seguro” também nas mensagens/notificações.
+        String number = extractNumber(title);
+        if (number.isEmpty()) number = extractNumber(text);
+        if (number.isEmpty()) number = extractNumber(big);
+        if (number.isEmpty()) number = numberForUniqueContactName(title);
+        if (!number.isEmpty() && GuardStore.isSafe(this, number)) {
+            AppTrustStore.recordScrutiny(this, sbn.getPackageName(), appName, "🟢 NÚMERO SEGURO", false);
+            return;
+        }
+
+        RiskAnalyzer.Result result = RiskAnalyzer.analyze(this, combined);
         boolean suppressedTrustedWarning = AppTrustStore.MODE_TRUSTED.equals(appMode) && result.level == RiskAnalyzer.Level.WARNING;
         boolean alertGenerated = result.level != RiskAnalyzer.Level.SAFE && !suppressedTrustedWarning;
         String scrutinyVerdict = result.level == RiskAnalyzer.Level.SCAM
@@ -59,11 +105,6 @@ public class GuardNotificationListener extends NotificationListenerService {
         // Uma app marcada como confiável não gera avisos amarelos pouco conclusivos.
         // Padrões fortes (POSSÍVEL BURLA) continuam a ser sinalizados.
         if (suppressedTrustedWarning) return;
-
-        String number = extractNumber(title);
-        if (number.isEmpty()) number = extractNumber(text);
-        if (number.isEmpty()) number = extractNumber(big);
-        if (number.isEmpty()) number = numberForUniqueContactName(title);
 
         String sender = title.trim();
         if (sender.isEmpty()) sender = !number.isEmpty() ? number : "Remetente não identificado";

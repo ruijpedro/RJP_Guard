@@ -1,0 +1,14 @@
+{
+  "version": "3.8.0",
+  "policy": "conservative-defaults-user-overridable",
+  "packages": [
+    {"package":"com.android.vending","label":"Google Play Store"},
+    {"package":"com.google.android.gms","label":"Google Play services"},
+    {"package":"com.google.android.gsf","label":"Google Services Framework"},
+    {"package":"com.android.systemui","label":"Android System UI"},
+    {"package":"com.android.permissioncontroller","label":"Android Permission Controller"},
+    {"package":"com.google.android.permissioncontroller","label":"Google Permission Controller"},
+    {"package":"com.android.packageinstaller","label":"Android Package Installer"},
+    {"package":"com.google.android.packageinstaller","label":"Google Package Installer"}
+  ]
+}
